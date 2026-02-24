@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -191,6 +190,14 @@ header{
 .att-stats-rate{font-weight:700;color:var(--primary);}
 .att-stats-rate.low{color:var(--danger);}
 .att-stats-rate.mid{color:var(--accent);}
+.filter-tag{
+  font-size:.72rem;padding:4px 10px;border-radius:50px;
+  background:var(--gray-100);border:1.5px solid var(--gray-200);
+  color:var(--gray-600);cursor:pointer;font-weight:600;transition:.15s;
+}
+.filter-tag.active{
+  background:var(--primary);border-color:var(--primary);color:#fff;
+}
 .sort-tab{padding:7px 0;border:none;border-radius:50px;font-size:.78rem;font-weight:600;font-family:var(--font-main);background:none;color:var(--gray-600);cursor:pointer;transition:all .18s;}
 .sort-tab.active{background:#fff;color:var(--primary);box-shadow:var(--shadow-sm);}
 .badge-green{background:#D1FAE5;color:#065F46;}
@@ -942,9 +949,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <!-- 통계 카드 -->
     <div class="stat-grid" id="statsGrid">
       <div class="stat-card"><div class="stat-num" id="statTotal">-</div><div class="stat-label">전체 학생</div></div>
-      <div class="stat-card"><div class="stat-num" id="statActive" style="color:var(--success);">-</div><div class="stat-label">등록</div></div>
-      <div class="stat-card"><div class="stat-num" id="statNewbie" style="color:var(--accent);">-</div><div class="stat-label">새친구</div></div>
-      <div class="stat-card"><div class="stat-num" id="statAbsent" style="color:var(--danger);">-</div><div class="stat-label">장결자</div></div>
+      <div class="stat-card" onclick="showStatusList('등록')" style="cursor:pointer;" title="등록 학생 보기"><div class="stat-num" id="statActive" style="color:var(--success);">-</div><div class="stat-label">등록 ›</div></div>
+      <div class="stat-card" onclick="showStatusList('새친구')" style="cursor:pointer;" title="새친구 보기"><div class="stat-num" id="statNewbie" style="color:var(--accent);">-</div><div class="stat-label">새친구 ›</div></div>
+      <div class="stat-card" onclick="showStatusList('장결자')" style="cursor:pointer;" title="장결자 보기"><div class="stat-num" id="statAbsent" style="color:var(--danger);">-</div><div class="stat-label">장결자 ›</div></div>
     </div>
 
     <!-- 공지사항 콜아웃 -->
@@ -1232,6 +1239,36 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <button class="sort-tab active" id="recTabStudents" onclick="switchRecordTab('students')" style="flex:1;border-radius:50px;">📚 학생 교적</button>
       <button class="sort-tab" id="recTabTeachers" onclick="switchRecordTab('teachers')" style="flex:1;border-radius:50px;">👨‍🏫 교사 교적</button>
     </div>
+    <!-- 학생 교적 필터 -->
+    <div id="recFilterBar" style="margin-bottom:10px;">
+      <!-- 보기 모드 버튼 -->
+      <div style="display:flex;gap:4px;margin-bottom:8px;">
+        <button class="sort-tab active" id="recViewAll"    onclick="setRecViewMode('all')"    style="font-size:.75rem;padding:5px 12px;border-radius:50px;">전체</button>
+        <button class="sort-tab"        id="recViewGrade"  onclick="setRecViewMode('grade')"  style="font-size:.75rem;padding:5px 12px;border-radius:50px;">학년별</button>
+        <button class="sort-tab"        id="recViewStatus" onclick="setRecViewMode('status')" style="font-size:.75rem;padding:5px 12px;border-radius:50px;">상태별</button>
+      </div>
+      <!-- 학년 선택 (학년별 모드일 때) -->
+      <div id="recGradeFilter" style="display:none;flex-wrap:wrap;gap:5px;margin-bottom:6px;">
+        <span style="font-size:.72rem;color:var(--gray-400);align-self:center;margin-right:2px;">학년</span>
+        <button class="filter-tag" onclick="toggleGradeFilter('초6')" id="fg_초6">초6</button>
+        <button class="filter-tag" onclick="toggleGradeFilter('중1')" id="fg_중1">중1</button>
+        <button class="filter-tag" onclick="toggleGradeFilter('중2')" id="fg_중2">중2</button>
+        <button class="filter-tag" onclick="toggleGradeFilter('중3')" id="fg_중3">중3</button>
+        <button class="filter-tag" onclick="toggleGradeFilter('고1')" id="fg_고1">고1</button>
+        <button class="filter-tag" onclick="toggleGradeFilter('고2')" id="fg_고2">고2</button>
+        <button class="filter-tag" onclick="toggleGradeFilter('고3')" id="fg_고3">고3</button>
+        <button class="filter-tag" onclick="toggleGradeFilter('영어반')" id="fg_영어반">영어반</button>
+      </div>
+      <!-- 상태 선택 (상태별 모드일 때) -->
+      <div id="recStatusFilter" style="display:none;flex-wrap:wrap;gap:5px;margin-bottom:6px;">
+        <span style="font-size:.72rem;color:var(--gray-400);align-self:center;margin-right:2px;">상태</span>
+        <button class="filter-tag" onclick="toggleStatusFilter('등록')" id="fs_등록">등록</button>
+        <button class="filter-tag" onclick="toggleStatusFilter('새친구')" id="fs_새친구">새친구</button>
+        <button class="filter-tag" onclick="toggleStatusFilter('심방필요')" id="fs_심방필요">심방필요</button>
+        <button class="filter-tag" onclick="toggleStatusFilter('장결자')" id="fs_장결자">장결자</button>
+        <button class="filter-tag" onclick="toggleStatusFilter('유학중')" id="fs_유학중">유학중</button>
+      </div>
+    </div>
     <!-- 학생 교적 정렬 -->
     <div id="recSortBar" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
       <span style="font-size:.75rem;color:var(--gray-400);flex-shrink:0;">정렬</span>
@@ -1336,8 +1373,12 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <input class="form-control" id="sContact" placeholder="010-0000-0000">
       </div>
       <div class="form-group">
-        <label class="form-label">학부모 연락처</label>
-        <input class="form-control" id="sParent" placeholder="010-0000-0000">
+        <label class="form-label">학부모 연락처 (부)</label>
+        <input class="form-control" id="sParentFather" placeholder="010-0000-0000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">학부모 연락처 (모)</label>
+        <input class="form-control" id="sParentMother" placeholder="010-0000-0000">
       </div>
       <div class="form-group">
         <label class="form-label">주소</label>
@@ -1447,7 +1488,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyZvvtSfK42bPvzzA0Lira38jgckL3FngX2nypyvZQpabxIeSups86AFEEH4pKUAYuwIw/exec'; // ← 배포 후 웹앱 URL로 교체
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbym1D_PT7y_FMU-YB558pKcneLmlVD7-VYaNewnNpf-ycI7LD5qYDRQxKzTWO4GNt7zJQ/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -1518,6 +1559,10 @@ function callGAS(action, payload = {}) {
   return new Promise((resolve, reject) => {
     // GAS_URL이 없으면 데모 데이터 사용
     if (!GAS_URL) {
+      if (!window._gasWarnShown && action !== 'getSundays') {
+        window._gasWarnShown = true;
+        setTimeout(() => showToast('⚠️ 데모 모드: 구글 시트 미연결. Index.html의 GAS_URL에 배포 URL을 입력하세요.', 'error'), 1200);
+      }
       resolve(getDemoData(action, payload));
       return;
     }
@@ -1831,7 +1876,7 @@ function getDemoData(action, payload) {
         return { success: true, data: { students: result, sundays: getSundays2026() } };
       }
 
-      const validStatuses = ['등록','심방필요','장결자']; // 유학중·새친구 제외
+      const validStatuses = ['등록','심방필요']; // 장결자·유학중·새친구 출석목록 제외
       const studs = _demo.students
         .filter(s => s['학년-반'] === cls && validStatuses.includes(s['상태']))
         .sort((a,b) => a['이름'].localeCompare(b['이름'],'ko'));
@@ -1946,7 +1991,10 @@ function getDemoData(action, payload) {
         학생ID:payload.id, 이름:payload.name,
         ['학년-반']:payload.classGroup, 담임교사:payload.teacher,
         성별:payload.gender, 나이:payload.age, 생년월일:payload.birthdate,
-        본인연락처:payload.contact, 학부모연락처:payload.parentContact,
+        본인연락처:payload.contact,
+        '학부모연락처(부)':payload.parentContactFather||payload.parentContact||'',
+        '학부모연락처(모)':payload.parentContactMother||'',
+        학부모연락처:payload.parentContactFather||payload.parentContact||'',
         상태:payload.status, 주소:payload.address||''
       };
       return {success:true, data:null, message:'수정되었습니다.'};
@@ -2002,7 +2050,8 @@ function todayLocalStr() {
 
 function getSundays2026() {
   const sundays = [];
-  const d = new Date(2026, 0, 4);
+  // 2026년 3월 1일은 일요일 - 출석 시작일
+  const d = new Date(2026, 2, 1); // month is 0-indexed, so 2 = March
   while (d.getFullYear() === 2026) {
     sundays.push(toLocalDateStr(d));
     d.setDate(d.getDate() + 7);
@@ -2638,6 +2687,78 @@ function loadSermonData(dateStr) {
 // ══════════════════════════════════════════
 // 대시보드
 // ══════════════════════════════════════════
+// ── 홈 통계 카드 클릭 → 해당 상태 학생 명단 모달 ──────────────
+function showStatusList(status) {
+  let students;
+  let title;
+  if (status === '등록') {
+    students = allStudents.filter(s => s['상태'] === '등록');
+    title = '✅ 등록 학생';
+  } else if (status === '새친구') {
+    students = allStudents.filter(s => s['상태'] === '새친구' || s['상태'] === '새 친구');
+    title = '🌱 새친구';
+  } else if (status === '장결자') {
+    students = allStudents.filter(s => s['상태'] === '장결자' || s['상태'] === '유학중' || s['상태'] === '유학');
+    title = '⚠️ 장결자 / 유학';
+  } else {
+    students = allStudents.filter(s => s['상태'] === status);
+    title = status;
+  }
+
+  // 기존 모달 재활용 또는 동적 생성
+  let modal = document.getElementById('statusListModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.id = 'statusListModal';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:420px;max-height:80vh;display:flex;flex-direction:column;">
+        <div class="modal-header">
+          <div class="modal-title" id="statusListTitle"></div>
+          <button class="modal-close" onclick="closeModal('statusListModal')">✕</button>
+        </div>
+        <div class="modal-body" id="statusListBody" style="overflow-y:auto;flex:1;"></div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" style="flex:1" onclick="closeModal('statusListModal')">닫기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal('statusListModal'); });
+  }
+
+  document.getElementById('statusListTitle').textContent = title + ' · ' + students.length + '명';
+
+  const GRADE_ORDER_STATUS = ['초6','중1','중2','중3','고1','고2','고3','영어반'];
+  function gradeKey(cls) {
+    if (!cls) return '99_기타';
+    for (let i = 0; i < GRADE_ORDER_STATUS.length; i++) {
+      if (cls.startsWith(GRADE_ORDER_STATUS[i])) return String(i).padStart(2,'0') + '_' + cls;
+    }
+    return '99_' + cls;
+  }
+  const sorted = [...students].sort((a,b) => gradeKey(a['학년-반']).localeCompare(gradeKey(b['학년-반'])));
+
+  if (!sorted.length) {
+    document.getElementById('statusListBody').innerHTML = '<div class="empty"><div class="empty-icon">😊</div>해당 학생이 없습니다.</div>';
+  } else {
+    document.getElementById('statusListBody').innerHTML = sorted.map(s => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-100);">
+        <div style="width:34px;height:34px;border-radius:50%;background:var(--primary-lt);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary);font-size:.85rem;">
+          ${s['이름'].charAt(0)}
+        </div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:.88rem;">${s['이름']}
+            <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;margin-left:4px;">${s['상태']}</span>
+          </div>
+          <div style="font-size:.75rem;color:var(--gray-500);">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${s['나이']||'-'}세</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="closeModal('statusListModal');showStudentDetail('${s['학생ID']}')">상세</button>
+      </div>`).join('');
+  }
+
+  openModal('statusListModal');
+}
+
 function renderDashboard() {
   const isAdmin   = currentUser && currentUser.role === 'admin';
   const dashboard = document.getElementById('view-dashboard');
@@ -2699,8 +2820,14 @@ function renderStudentList() {
   const m = filterMonth > 0 ? filterMonth : new Date().getMonth() + 1;
 
   function getBdMonth(bd) {
-    const s = String(bd || '');
-    return s.length >= 4 ? parseInt(s.slice(2,4)) : 0;
+    const s = String(bd || '').replace(/\s/g, '');
+    if (!s) return 0;
+    // YYYY-MM-DD 형식
+    const ymatch = s.match(/^\d{4}-(\d{2})-\d{2}$/);
+    if (ymatch) return parseInt(ymatch[1]);
+    // YYMMDD 형식 (6자리)
+    if (s.length >= 4) return parseInt(s.slice(2,4));
+    return 0;
   }
 
   const birthdayStudents = allStudents.filter(s => getBdMonth(s['생년월일']) === m);
@@ -2940,7 +3067,12 @@ async function loadAttendance() {
   if (!r.success) { showToast(r.message,'error'); return; }
 
   currentAttRecords = {};
-  r.data.students.forEach(s => currentAttRecords[s.studentId] = { ...s });
+  r.data.students.forEach(s => {
+    // 장결자 / 유학중 학생은 출석체크 목록에서 제외
+    const stu = allStudents.find(st => st['학생ID'] === s.studentId);
+    if (stu && (stu['상태'] === '장결자' || stu['상태'] === '유학중' || stu['상태'] === '유학')) return;
+    currentAttRecords[s.studentId] = { ...s };
+  });
   renderAttList();
 }
 
@@ -3060,6 +3192,10 @@ async function saveAttendance() {
   await loadStudents();
   renderDashboard();
   await loadAttendanceStats();
+  // 상태 변경(장결자→등록 등) 반영: 현재 반 출석 목록 재로드
+  const clsAfter = document.getElementById('attClass').value;
+  const dateAfter = document.getElementById('attDate').value;
+  if (clsAfter && dateAfter) await loadAttendance();
 }
 
 // ── 연속 결석/미체크 횟수 (이번 기록 포함) ─────────────────
@@ -3210,7 +3346,8 @@ async function applyStatusChange(studentId, newStatus) {
     age: stu['나이'] || '',
     birthdate: stu['생년월일'] || '',
     contact: stu['본인연락처'] || '',
-    parentContact: stu['학부모연락처'] || '',
+    parentContactFather: stu['학부모연락처(부)'] || stu['학부모연락처'] || '',
+    parentContactMother: stu['학부모연락처(모)'] || '',
     address: stu['주소'] || '',
     status: newStatus,
   };
@@ -3492,6 +3629,8 @@ function switchRecordTab(tab) {
   document.getElementById('recordStudentList').style.display = tab === 'students' ? '' : 'none';
   document.getElementById('recordTeacherList').style.display  = tab === 'teachers' ? '' : 'none';
   document.getElementById('recSortBar').style.display = tab === 'students' ? '' : 'none';
+  const filterBar = document.getElementById('recFilterBar');
+  if (filterBar) filterBar.style.display = tab === 'students' ? '' : 'none';
   document.getElementById('recTabStudents').classList.toggle('active', tab === 'students');
   document.getElementById('recTabTeachers').classList.toggle('active', tab === 'teachers');
   if (tab === 'students') renderRecords();
@@ -3550,24 +3689,111 @@ function sortStudents(list) {
   }
 }
 
+// ── 교적 필터 상태 ────────────────────────────────────────
+let recViewMode = 'all'; // 'all' | 'grade' | 'status'
+const _gradeFilter = new Set();
+const _statusFilter = new Set();
+const GRADE_ORDER_REC = ['초6','중1','중2','중3','고1','고2','고3','영어반'];
+
+function setRecViewMode(mode) {
+  recViewMode = mode;
+  ['all','grade','status'].forEach(m => {
+    document.getElementById('recView'+m.charAt(0).toUpperCase()+m.slice(1)).classList.toggle('active', m === mode);
+  });
+  document.getElementById('recGradeFilter').style.display = mode === 'grade' ? 'flex' : 'none';
+  document.getElementById('recStatusFilter').style.display = mode === 'status' ? 'flex' : 'none';
+  if (mode !== 'grade') _gradeFilter.clear();
+  if (mode !== 'status') _statusFilter.clear();
+  // 태그 초기화
+  document.querySelectorAll('.filter-tag').forEach(b => b.classList.remove('active'));
+  renderRecords();
+}
+
+function toggleGradeFilter(grade) {
+  if (_gradeFilter.has(grade)) _gradeFilter.delete(grade);
+  else _gradeFilter.add(grade);
+  const btn = document.getElementById('fg_' + grade);
+  if (btn) btn.classList.toggle('active', _gradeFilter.has(grade));
+  renderRecords();
+}
+
+function toggleStatusFilter(st) {
+  if (_statusFilter.has(st)) _statusFilter.delete(st);
+  else _statusFilter.add(st);
+  const btn = document.getElementById('fs_' + st);
+  if (btn) btn.classList.toggle('active', _statusFilter.has(st));
+  renderRecords();
+}
+
+function _studentCard(s) {
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const btns = isAdmin
+    ? `<div style="display:flex;gap:6px;">
+        <button class="btn btn-outline btn-sm" onclick="openEditStudentModal('${s['학생ID']}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteStudentConfirm('${s['학생ID']}','${s['이름']}')">🗑️</button>
+      </div>`
+    : `<button class="btn btn-outline btn-sm" onclick="showStudentDetail('${s['학생ID']}')">상세</button>`;
+  return `<div class="card" style="margin-bottom:6px;" onclick="">
+    <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:11px 14px;">
+      <div style="width:34px;height:34px;border-radius:50%;background:var(--primary-lt);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary);font-size:.85rem;flex-shrink:0;">${s['이름'].charAt(0)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:.88rem;">${s['이름']} <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;">${s['상태']}</span></div>
+        <div style="font-size:.73rem;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${s['나이']||'-'}세 · ${s['담임교사']||'-'}</div>
+      </div>
+      ${btns}
+    </div>
+  </div>`;
+}
+
 function renderRecords() {
   const el = document.getElementById('recordStudentList');
   const q = searchQuery.toLowerCase();
-  const filtered = sortStudents(allStudents.filter(s => !q || s['이름'].includes(q)));
+  let filtered = allStudents.filter(s => !q || s['이름'].includes(q));
+
+  // 필터 적용
+  if (recViewMode === 'grade' && _gradeFilter.size > 0) {
+    filtered = filtered.filter(s => {
+      const cls = s['학년-반'] || '';
+      return [..._gradeFilter].some(g => {
+        if (g === '영어반') return cls.includes('영어반');
+        return cls.startsWith(g);
+      });
+    });
+    // 학년 순서 정렬
+    filtered = filtered.sort((a,b) => {
+      function gIdx(s) {
+        const cls = s['학년-반'] || '';
+        for (let i=0;i<GRADE_ORDER_REC.length;i++) {
+          if (GRADE_ORDER_REC[i]==='영어반' ? cls.includes('영어반') : cls.startsWith(GRADE_ORDER_REC[i])) return i;
+        }
+        return 99;
+      }
+      return gIdx(a)-gIdx(b) || (a['학년-반']||'').localeCompare(b['학년-반']||'');
+    });
+    // 학년별 섹션 그룹
+    if (!filtered.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📚</div>해당 학생이 없습니다.</div>`; return; }
+    const groups = {};
+    filtered.forEach(s => {
+      const cls = s['학년-반'] || '기타';
+      const key = GRADE_ORDER_REC.find(g => g==='영어반' ? cls.includes('영어반') : cls.startsWith(g)) || '기타';
+      if (!groups[key]) groups[key];
+      (groups[key] = groups[key] || []).push(s);
+    });
+    el.innerHTML = GRADE_ORDER_REC.filter(g => groups[g])
+      .map(g => `
+        <div style="background:var(--primary-lt);border-left:3px solid var(--primary);padding:6px 12px;border-radius:4px;margin:10px 0 6px;font-size:.78rem;font-weight:800;color:var(--primary);">${g} · ${groups[g].length}명</div>
+        ${sortStudents(groups[g]).map(_studentCard).join('')}
+      `).join('');
+    return;
+  }
+
+  if (recViewMode === 'status' && _statusFilter.size > 0) {
+    filtered = filtered.filter(s => _statusFilter.has(s['상태']));
+  }
+
+  filtered = sortStudents(filtered);
   if (!filtered.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📚</div>학생이 없습니다.</div>`; return; }
-  el.innerHTML = filtered.map(s => `
-    <div class="card" style="margin-bottom:8px;">
-      <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:.9rem;">${s['이름']} <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.68rem;">${s['상태']}</span></div>
-          <div style="font-size:.75rem;color:var(--gray-600);">${s['학년-반']} · ${s['성별']} · 만${s['나이']}세</div>
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-outline btn-sm" onclick="openEditStudentModal('${s['학생ID']}')">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteStudentConfirm('${s['학생ID']}','${s['이름']}')">🗑️</button>
-        </div>
-      </div>
-    </div>`).join('');
+  el.innerHTML = filtered.map(_studentCard).join('');
 }
 
 // 외부 클릭 시 정렬 메뉴 닫기
@@ -3740,7 +3966,8 @@ function showStudentDetail(id) {
       ${detailRow('성별/나이', `${s['성별']} / 만${s['나이']}세`)}
       ${detailRow('생년월일', s['생년월일']||'-')}
       ${detailRow('본인연락처', s['본인연락처']||'-')}
-      ${detailRow('학부모연락처', s['학부모연락처']||'-')}
+      ${detailRow('학부모연락처(부)', s['학부모연락처(부)']||s['학부모연락처']||'-')}
+      ${detailRow('학부모연락처(모)', s['학부모연락처(모)']||'-')}
       ${s['주소'] ? detailRow('주소', s['주소']) : ''}
       ${detailRow('상태', `<span class="badge ${statusBadgeClass(s['상태'])}">${s['상태']}</span>`)}
     </div>`;
@@ -3824,7 +4051,8 @@ function openAddStudentModal(isNewbie=false) {
   document.getElementById('sTeacher').value = '';
   document.getElementById('sStatus').value = isNewbie ? '새친구' : '등록';
   document.getElementById('sContact').value = '';
-  document.getElementById('sParent').value = '';
+  document.getElementById('sParentFather').value = '';
+  document.getElementById('sParentMother').value = '';
   document.getElementById('sAddress').value = '';
   openModal('studentModal');
 }
@@ -3844,7 +4072,8 @@ function openEditStudentModal(id) {
   document.getElementById('sTeacher').value = s['담임교사']||'';
   document.getElementById('sStatus').value = s['상태'];
   document.getElementById('sContact').value = s['본인연락처']||'';
-  document.getElementById('sParent').value = s['학부모연락처']||'';
+  document.getElementById('sParentFather').value = s['학부모연락처(부)']||s['학부모연락처']||'';
+  document.getElementById('sParentMother').value = s['학부모연락처(모)']||'';
   document.getElementById('sAddress').value = s['주소']||'';
   openModal('studentModal');
 }
@@ -3861,7 +4090,8 @@ async function submitStudent() {
     teacher: document.getElementById('sTeacher').value.trim(),
     status: document.getElementById('sStatus').value,
     contact: document.getElementById('sContact').value.trim(),
-    parentContact: document.getElementById('sParent').value.trim(),
+    parentContactFather: document.getElementById('sParentFather').value.trim(),
+    parentContactMother: document.getElementById('sParentMother').value.trim(),
     address: document.getElementById('sAddress').value.trim(),
   };
   if (!payload.name) { showToast('이름을 입력해주세요.', 'error'); return; }
@@ -3988,7 +4218,7 @@ function showToast(msg, type='') {
   el.className = 'toast ' + (type==='success'?'success':type==='error'?'error':'');
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=>el.classList.remove('show'), 2800);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 3000);
 }
 
 function formatDate(d) {
@@ -4042,12 +4272,17 @@ _searchInput.addEventListener('compositionstart', () => { _isComposing = true; }
 _searchInput.addEventListener('compositionend', e => {
   _isComposing = false;
   searchQuery = e.target.value.trim();
-  renderSearchDropdown();
+  setTimeout(() => renderSearchDropdown(), 10); // 한글 완성 대기
 });
 
 _searchInput.addEventListener('input', e => {
   if (_isComposing) return;
   searchQuery = e.target.value.trim();
+  // 로딩 안된 경우 재시도
+  if (searchQuery && !allStudents.length && !allTeachers.length) {
+    loadStudents().then(() => loadTeachers()).then(() => renderSearchDropdown());
+    return;
+  }
   renderSearchDropdown();
 });
 
@@ -4055,7 +4290,7 @@ _searchInput.addEventListener('keydown', e => {
   if (e.key === 'Escape') { clearSearch(); return; }
   if (e.key === 'Enter' && !_isComposing) {
     e.preventDefault();
-    openSearchPage(searchQuery);
+    if (searchQuery) openSearchPage(searchQuery);
   }
 });
 
@@ -4071,7 +4306,9 @@ function matchStudent(s, q) {
   if (!q) return false;
   return (s['이름'] || '').includes(q) ||
          (s['본인연락처'] || '').replace(/-/g,'').includes(q.replace(/-/g,'')) ||
-         (s['학부모연락처'] || '').replace(/-/g,'').includes(q.replace(/-/g,''));
+         (s['학부모연락처'] || '').replace(/-/g,'').includes(q.replace(/-/g,'')) ||
+         (s['학부모연락처(부)'] || '').replace(/-/g,'').includes(q.replace(/-/g,'')) ||
+         (s['학부모연락처(모)'] || '').replace(/-/g,'').includes(q.replace(/-/g,''));
 }
 
 function renderSearchDropdown() {
@@ -4188,7 +4425,7 @@ function renderSearchPage(q) {
               ${!nameMatch?'<span style="font-size:.65rem;background:#DCFCE7;color:#166534;border-radius:50px;padding:1px 6px;margin-left:4px;">📱 연락처</span>':''}
             </div>
             <div style="font-size:.75rem;color:var(--gray-600);">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${s['나이']||'-'}세</div>
-            ${!nameMatch?`<div style="font-size:.7rem;color:var(--gray-400);">${s['본인연락처']||''} ${s['학부모연락처']||''}</div>`:''}
+            ${!nameMatch?`<div style="font-size:.7rem;color:var(--gray-400);">📱 ${s['본인연락처']||s['학부모연락처(부)']||s['학부모연락처']||''}</div>`:''}
           </div>
           <span style="color:var(--gray-300);">›</span>
         </div>
