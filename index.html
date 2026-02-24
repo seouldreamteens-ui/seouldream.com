@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0055)file:///Users/dreamteens/Downloads/files%202/Index.html -->
-<html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>드림틴즈 교적관리</title>
-<link href="./드림틴즈 교적관리_files/css2" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Gmarket+Sans:wght@300;500;700&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════
    CSS 변수 & 리셋
@@ -463,7 +463,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 #loginScreen{
   position:fixed;inset:0;z-index:999;
   background:linear-gradient(160deg,#1E3A8A 0%,#2563EB 50%,#38BDF8 100%);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  display:none;flex-direction:column;align-items:center;justify-content:center;
   padding:32px 24px;
 }
 .login-card{
@@ -845,27 +845,52 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 <body>
 
 <!-- ─── 로그인 화면 ─── -->
-<div id="loginScreen" style="display: none;">
+<div id="loginScreen">
   <div class="login-card">
     <div class="login-logo">
       <div class="cross">✝️</div>
       <h1>드림틴즈 교적관리</h1>
-      <p>담당 교사 이름으로 로그인하세요</p>
+      <p id="loginSubtitle">이름을 입력하세요</p>
     </div>
-    <div class="form-group">
-      <label class="form-label">이름</label>
-      <input class="form-control" id="loginName" placeholder="예) 김선생" autocomplete="off" style="font-size:1rem;" onkeydown="if(event.key===&#39;Enter&#39;)doLogin()">
+
+    <!-- STEP 1: 이름 입력 -->
+    <div id="loginStep1">
+      <div class="form-group">
+        <label class="form-label">이름</label>
+        <input class="form-control" id="loginName" placeholder="예) 김선생" autocomplete="off"
+          style="font-size:1rem;" onkeydown="if(event.key==='Enter')checkLoginName()">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="checkLoginName()" style="padding:13px;font-size:1rem;">
+        다음 →
+      </button>
     </div>
-    <div id="loginError" style="display:none;color:var(--danger);font-size:.82rem;margin-bottom:12px;padding:8px 12px;background:#FEE2E2;border-radius:8px;"></div>
-    <button class="btn btn-primary btn-full" onclick="doLogin()" style="padding:13px;font-size:1rem;">
-      로그인 →
-    </button>
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--gray-200);text-align:center;">
-      <p style="font-size:.75rem;color:var(--gray-400);margin-bottom:10px;">교역자 / 관리자로 로그인</p>
-      <button class="btn btn-outline btn-sm" onclick="doAdminLogin()" style="width:100%;">
+
+    <!-- STEP 2: 비밀번호 입력 (교역자) -->
+    <div id="loginStep2" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 14px;background:var(--primary-lt);border-radius:8px;">
+        <span style="font-size:1.2rem;">🔑</span>
+        <div>
+          <div style="font-weight:700;font-size:.9rem;" id="loginNameDisplay"></div>
+          <div style="font-size:.75rem;color:var(--gray-500);">교역자 · 비밀번호를 입력하세요</div>
+        </div>
+        <button onclick="backToStep1()" style="margin-left:auto;background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:.8rem;">✕ 변경</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">비밀번호</label>
+        <div style="position:relative;">
+          <input class="form-control" id="loginPw" type="password" placeholder="비밀번호 입력"
+            style="font-size:1rem;padding-right:44px;"
+            onkeydown="if(event.key==='Enter')doAdminLoginWithPw()">
+          <button onclick="togglePwVisible()" id="pwToggleBtn"
+            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.9rem;color:var(--gray-400);">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="doAdminLoginWithPw()" style="padding:13px;font-size:1rem;">
         🔑 교역자 로그인
       </button>
     </div>
+
+    <div id="loginError" style="display:none;color:var(--danger);font-size:.82rem;margin-top:12px;padding:8px 12px;background:#FEE2E2;border-radius:8px;"></div>
   </div>
 </div>
 
@@ -884,12 +909,16 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
       <div class="search-dropdown" id="searchDropdown"></div>
     </div>
-    <div class="user-chip" onclick="doLogout()" id="userChip" title="로그아웃">
-      <div class="u-avatar" id="userAvatar">교</div>
-      <div>
-        <div class="u-name" id="userName">교역자</div>
-        <div class="u-role" id="userRoleBadge">🔑 교역자</div>
+    <div class="user-chip" id="userChip" title="메뉴">
+      <div class="u-avatar" id="userAvatar" onclick="doLogout()" title="로그아웃">?</div>
+      <div onclick="doLogout()" title="로그아웃">
+        <div class="u-name" id="userName">-</div>
+        <div class="u-role" id="userRoleBadge">-</div>
       </div>
+      <button id="changePwBtn" onclick="openChangePwModal()" title="비밀번호 변경"
+        style="display:none;margin-left:6px;background:rgba(255,255,255,.2);border:none;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:.75rem;color:#fff;align-items:center;gap:3px;white-space:nowrap;">
+        🔑 PW
+      </button>
     </div>
   </div>
 </header>
@@ -911,15 +940,15 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 
     <!-- 통계 카드 -->
     <div class="stat-grid" id="statsGrid">
-      <div class="stat-card"><div class="stat-num" id="statTotal">210</div><div class="stat-label">전체 학생</div></div>
-      <div class="stat-card"><div class="stat-num" id="statActive" style="color:var(--success);">210</div><div class="stat-label">등록</div></div>
-      <div class="stat-card"><div class="stat-num" id="statNewbie" style="color:var(--accent);">2</div><div class="stat-label">새친구</div></div>
+      <div class="stat-card"><div class="stat-num" id="statTotal">-</div><div class="stat-label">전체 학생</div></div>
+      <div class="stat-card"><div class="stat-num" id="statActive" style="color:var(--success);">-</div><div class="stat-label">등록</div></div>
+      <div class="stat-card"><div class="stat-num" id="statNewbie" style="color:var(--accent);">-</div><div class="stat-label">새친구</div></div>
       <div class="stat-card"><div class="stat-num" id="statAbsent" style="color:var(--danger);">-</div><div class="stat-label">장결자</div></div>
     </div>
 
     <!-- 공지사항 콜아웃 -->
     <div class="callout callout-notice open" id="calloutNotice">
-      <div class="callout-header" onclick="toggleCallout(&#39;calloutNotice&#39;)">
+      <div class="callout-header" onclick="toggleCallout('calloutNotice')">
         <div class="callout-title">
           <span class="callout-icon">📢</span>
           <span>공지사항</span>
@@ -929,12 +958,12 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
       <div class="callout-body">
         <div id="noticeList"></div>
-        <button class="callout-add-btn" onclick="openInlineForm(&#39;noticeForm&#39;)">＋ 공지 추가</button>
+        <button class="callout-add-btn" onclick="openInlineForm('noticeForm')">＋ 공지 추가</button>
         <div class="inline-form" id="noticeForm">
           <input type="text" id="noticeInput" placeholder="공지 내용을 입력하세요">
           <input type="date" id="noticeDate">
           <div class="inline-form-btns">
-            <button class="btn-cancel-inline" onclick="closeInlineForm(&#39;noticeForm&#39;)">취소</button>
+            <button class="btn-cancel-inline" onclick="closeInlineForm('noticeForm')">취소</button>
             <button class="btn-save-inline" onclick="addNotice()">저장</button>
           </div>
         </div>
@@ -943,7 +972,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 
     <!-- ■ 설교·소그룹 콜아웃 (교사용 홈 전용) ─────────────────── -->
     <div class="callout callout-sermon open" id="calloutSermon" style="display:none;">
-      <div class="callout-header" onclick="toggleCallout(&#39;calloutSermon&#39;)">
+      <div class="callout-header" onclick="toggleCallout('calloutSermon')">
         <div class="callout-title">
           <span class="callout-icon">✝️</span>
           <span>이번 주 말씀·소그룹</span>
@@ -992,8 +1021,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           </div>
           <div>
             <div class="sermon-field-label" style="margin-bottom:5px;">💬 내용 &amp; 나눔 질문</div>
-            <textarea id="seGroup" placeholder="설교 내용 요약 및 소그룹 나눔 질문을 입력하세요
-(줄바꿈 가능)"></textarea>
+            <textarea id="seGroup" placeholder="설교 내용 요약 및 소그룹 나눔 질문을 입력하세요&#10;(줄바꿈 가능)"></textarea>
           </div>
           <div class="inline-form-btns">
             <button class="btn-cancel-inline" onclick="toggleSermonEdit()">취소</button>
@@ -1006,7 +1034,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 
     <!-- 사역일정 콜아웃 -->
     <div class="callout callout-schedule open" id="calloutSchedule">
-      <div class="callout-header" onclick="toggleCallout(&#39;calloutSchedule&#39;)">
+      <div class="callout-header" onclick="toggleCallout('calloutSchedule')">
         <div class="callout-title">
           <span class="callout-icon">📅</span>
           <span>사역일정</span>
@@ -1040,7 +1068,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 
         <!-- 일정 추가 버튼 & 인라인 폼 -->
         <div style="padding:6px 14px 0;">
-          <button class="callout-add-btn" onclick="openInlineForm(&#39;scheduleForm&#39;)">＋ 일정 추가</button>
+          <button class="callout-add-btn" onclick="openInlineForm('scheduleForm')">＋ 일정 추가</button>
           <div class="inline-form" id="scheduleForm">
             <input type="text" id="scheduleInput" placeholder="일정 내용을 입력하세요">
             <input type="date" id="scheduleDate">
@@ -1052,7 +1080,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
               <option value="기타">기타</option>
             </select>
             <div class="inline-form-btns">
-              <button class="btn-cancel-inline" onclick="closeInlineForm(&#39;scheduleForm&#39;)">취소</button>
+              <button class="btn-cancel-inline" onclick="closeInlineForm('scheduleForm')">취소</button>
               <button class="btn-save-inline" onclick="addSchedule()" style="background:#15803D;color:#fff;">저장</button>
             </div>
           </div>
@@ -1082,7 +1110,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <!-- 교역자용 주차별 출석 통계 (admin만) -->
     <div id="attStatsPanel" style="display:none;margin-bottom:14px;">
       <div class="callout callout-notice" id="attStatsCallout">
-        <div class="callout-header" onclick="toggleCallout(&#39;attStatsCallout&#39;)" style="padding:10px 14px;">
+        <div class="callout-header" onclick="toggleCallout('attStatsCallout')" style="padding:10px 14px;">
           <div class="callout-title" style="font-size:.85rem;"><span class="callout-icon">📊</span><span>주차별 출석 현황</span></div>
           <span class="callout-chevron">▼</span>
         </div>
@@ -1090,8 +1118,12 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
     </div>
     <div class="att-header">
-      <select class="form-control" id="attClass" style="flex:1.2"><option value="">반 선택 (전체)</option><option value="__teachers__">👥 교사 출석체크</option><option value="초6-1반">초6-1반</option><option value="초6-2반">초6-2반</option><option value="초6-3반">초6-3반</option><option value="중1-1반">중1-1반</option><option value="중1-2반">중1-2반</option><option value="중1-3반">중1-3반</option><option value="중2-1반">중2-1반</option><option value="중2-2반">중2-2반</option><option value="중2-3반">중2-3반</option><option value="중3-1반">중3-1반</option><option value="중3-2반">중3-2반</option><option value="중3-3반">중3-3반</option><option value="고1-1반">고1-1반</option><option value="고1-2반">고1-2반</option><option value="고1-3반">고1-3반</option><option value="고2-1반">고2-1반</option><option value="고2-2반">고2-2반</option><option value="고2-3반">고2-3반</option><option value="고3-1반">고3-1반</option><option value="고3-2반">고3-2반</option><option value="고3-3반">고3-3반</option></select>
-      <select class="form-control" id="attDate" style="flex:1.5"><option value="">날짜 선택</option><option value="2026-01-04">1/4 (일)</option><option value="2026-01-11">1/11 (일)</option><option value="2026-01-18">1/18 (일)</option><option value="2026-01-25">1/25 (일)</option><option value="2026-02-01">2/1 (일)</option><option value="2026-02-08">2/8 (일)</option><option value="2026-02-15">2/15 (일)</option><option value="2026-02-22">2/22 (일)</option><option value="2026-03-01">3/1 (일)</option><option value="2026-03-08">3/8 (일)</option><option value="2026-03-15">3/15 (일)</option><option value="2026-03-22">3/22 (일)</option><option value="2026-03-29">3/29 (일)</option><option value="2026-04-05">4/5 (일)</option><option value="2026-04-12">4/12 (일)</option><option value="2026-04-19">4/19 (일)</option><option value="2026-04-26">4/26 (일)</option><option value="2026-05-03">5/3 (일)</option><option value="2026-05-10">5/10 (일)</option><option value="2026-05-17">5/17 (일)</option><option value="2026-05-24">5/24 (일)</option><option value="2026-05-31">5/31 (일)</option><option value="2026-06-07">6/7 (일)</option><option value="2026-06-14">6/14 (일)</option><option value="2026-06-21">6/21 (일)</option><option value="2026-06-28">6/28 (일)</option><option value="2026-07-05">7/5 (일)</option><option value="2026-07-12">7/12 (일)</option><option value="2026-07-19">7/19 (일)</option><option value="2026-07-26">7/26 (일)</option><option value="2026-08-02">8/2 (일)</option><option value="2026-08-09">8/9 (일)</option><option value="2026-08-16">8/16 (일)</option><option value="2026-08-23">8/23 (일)</option><option value="2026-08-30">8/30 (일)</option><option value="2026-09-06">9/6 (일)</option><option value="2026-09-13">9/13 (일)</option><option value="2026-09-20">9/20 (일)</option><option value="2026-09-27">9/27 (일)</option><option value="2026-10-04">10/4 (일)</option><option value="2026-10-11">10/11 (일)</option><option value="2026-10-18">10/18 (일)</option><option value="2026-10-25">10/25 (일)</option><option value="2026-11-01">11/1 (일)</option><option value="2026-11-08">11/8 (일)</option><option value="2026-11-15">11/15 (일)</option><option value="2026-11-22">11/22 (일)</option><option value="2026-11-29">11/29 (일)</option><option value="2026-12-06">12/6 (일)</option><option value="2026-12-13">12/13 (일)</option><option value="2026-12-20">12/20 (일)</option><option value="2026-12-27">12/27 (일)</option></select>
+      <select class="form-control" id="attClass" style="flex:1.2">
+        <option value="">반 선택</option>
+      </select>
+      <select class="form-control" id="attDate" style="flex:1.5">
+        <option value="">날짜 선택</option>
+      </select>
     </div>
     <div id="attDateBanner" style="display:none;
          background:linear-gradient(135deg,var(--primary-lt),#E0F2FE);
@@ -1126,7 +1158,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 
     <!-- 구글 폼 연동 안내 배너 -->
     <div class="callout callout-notice" id="formSyncBanner" style="margin-bottom:12px;">
-      <div class="callout-header" onclick="toggleCallout(&#39;formSyncBanner&#39;)" style="padding:11px 14px;">
+      <div class="callout-header" onclick="toggleCallout('formSyncBanner')" style="padding:11px 14px;">
         <div class="callout-title" style="font-size:.85rem;">
           <span class="callout-icon">📋</span>
           <span>QR 구글 폼 연동</span>
@@ -1139,7 +1171,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <span style="color:var(--primary);font-weight:600;">설정 방법 → Code.gs에서 <code>setupFormTrigger()</code> 실행</span>
         </div>
         <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
-          <input class="form-control" id="formUrlInput" placeholder="구글 폼 URL 또는 스프레드시트 ID 입력" style="font-size:.8rem;flex:1;">
+          <input class="form-control" id="formUrlInput" placeholder="구글 폼 URL 또는 스프레드시트 ID 입력"
+            style="font-size:.8rem;flex:1;">
           <button class="btn btn-primary btn-sm" onclick="saveFormUrl()">저장</button>
         </div>
         <div id="formUrlSaved" style="font-size:.75rem;color:var(--success);margin-top:6px;display:none;">✅ 저장됨</div>
@@ -1155,29 +1188,29 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </button>
       <div class="sort-menu" id="sortMenu">
         <div class="sort-group-label">이름</div>
-        <button class="sort-menu-item active" data-sort="name_asc" onclick="setNewbieSort(&#39;name_asc&#39;)">
+        <button class="sort-menu-item active" data-sort="name_asc" onclick="setNewbieSort('name_asc')">
           <span class="sort-dir-icon">↑</span> 오름차순 (ㄱ→ㅎ)
           <span class="sort-check">✓</span>
         </button>
-        <button class="sort-menu-item" data-sort="name_desc" onclick="setNewbieSort(&#39;name_desc&#39;)">
+        <button class="sort-menu-item" data-sort="name_desc" onclick="setNewbieSort('name_desc')">
           <span class="sort-dir-icon">↓</span> 내림차순 (ㅎ→ㄱ)
           <span class="sort-check">✓</span>
         </button>
         <div class="sort-group-label">나이</div>
-        <button class="sort-menu-item" data-sort="age_asc" onclick="setNewbieSort(&#39;age_asc&#39;)">
+        <button class="sort-menu-item" data-sort="age_asc" onclick="setNewbieSort('age_asc')">
           <span class="sort-dir-icon">↑</span> 어린 순
           <span class="sort-check">✓</span>
         </button>
-        <button class="sort-menu-item" data-sort="age_desc" onclick="setNewbieSort(&#39;age_desc&#39;)">
+        <button class="sort-menu-item" data-sort="age_desc" onclick="setNewbieSort('age_desc')">
           <span class="sort-dir-icon">↓</span> 많은 순
           <span class="sort-check">✓</span>
         </button>
         <div class="sort-group-label">출석주차</div>
-        <button class="sort-menu-item" data-sort="weeks_asc" onclick="setNewbieSort(&#39;weeks_asc&#39;)">
+        <button class="sort-menu-item" data-sort="weeks_asc" onclick="setNewbieSort('weeks_asc')">
           <span class="sort-dir-icon">↑</span> 적은 순
           <span class="sort-check">✓</span>
         </button>
-        <button class="sort-menu-item" data-sort="weeks_desc" onclick="setNewbieSort(&#39;weeks_desc&#39;)">
+        <button class="sort-menu-item" data-sort="weeks_desc" onclick="setNewbieSort('weeks_desc')">
           <span class="sort-dir-icon">↓</span> 많은 순
           <span class="sort-check">✓</span>
         </button>
@@ -1195,8 +1228,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
     <!-- 탭 전환 -->
     <div style="display:flex;gap:4px;margin-bottom:12px;background:var(--gray-100);padding:3px;border-radius:50px;">
-      <button class="sort-tab active" id="recTabStudents" onclick="switchRecordTab(&#39;students&#39;)" style="flex:1;border-radius:50px;">📚 학생 교적</button>
-      <button class="sort-tab" id="recTabTeachers" onclick="switchRecordTab(&#39;teachers&#39;)" style="flex:1;border-radius:50px;">👨‍🏫 교사 교적</button>
+      <button class="sort-tab active" id="recTabStudents" onclick="switchRecordTab('students')" style="flex:1;border-radius:50px;">📚 학생 교적</button>
+      <button class="sort-tab" id="recTabTeachers" onclick="switchRecordTab('teachers')" style="flex:1;border-radius:50px;">👨‍🏫 교사 교적</button>
     </div>
     <!-- 학생 교적 정렬 -->
     <div id="recSortBar" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -1207,14 +1240,14 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         </button>
         <div class="sort-menu" id="recSortMenu" style="display:none;">
           <div class="sort-group-label">이름</div>
-          <div class="sort-menu-item" onclick="setRecSort(&#39;name_asc&#39;)">↑ 오름차순 (ㄱ→ㅎ) <span class="sort-check" id="rschk_name_asc">✓</span></div>
-          <div class="sort-menu-item" onclick="setRecSort(&#39;name_desc&#39;)">↓ 내림차순 (ㅎ→ㄱ) <span class="sort-check" id="rschk_name_desc">✓</span></div>
+          <div class="sort-menu-item" onclick="setRecSort('name_asc')">↑ 오름차순 (ㄱ→ㅎ) <span class="sort-check" id="rschk_name_asc">✓</span></div>
+          <div class="sort-menu-item" onclick="setRecSort('name_desc')">↓ 내림차순 (ㅎ→ㄱ) <span class="sort-check" id="rschk_name_desc">✓</span></div>
           <div class="sort-group-label">나이</div>
-          <div class="sort-menu-item" onclick="setRecSort(&#39;age_asc&#39;)">↑ 어린 순 <span class="sort-check" id="rschk_age_asc">✓</span></div>
-          <div class="sort-menu-item" onclick="setRecSort(&#39;age_desc&#39;)">↓ 많은 순 <span class="sort-check" id="rschk_age_desc">✓</span></div>
+          <div class="sort-menu-item" onclick="setRecSort('age_asc')">↑ 어린 순 <span class="sort-check" id="rschk_age_asc">✓</span></div>
+          <div class="sort-menu-item" onclick="setRecSort('age_desc')">↓ 많은 순 <span class="sort-check" id="rschk_age_desc">✓</span></div>
           <div class="sort-group-label">기타</div>
-          <div class="sort-menu-item" onclick="setRecSort(&#39;status&#39;)">상태별 <span class="sort-check" id="rschk_status">✓</span></div>
-          <div class="sort-menu-item" onclick="setRecSort(&#39;class&#39;)">학년-반별 <span class="sort-check" id="rschk_class">✓</span></div>
+          <div class="sort-menu-item" onclick="setRecSort('status')">상태별 <span class="sort-check" id="rschk_status">✓</span></div>
+          <div class="sort-menu-item" onclick="setRecSort('class')">학년-반별 <span class="sort-check" id="rschk_class">✓</span></div>
         </div>
       </div>
     </div>
@@ -1245,7 +1278,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title" id="studentModalTitle">학생 등록</div>
-      <button class="modal-close" onclick="closeModal(&#39;studentModal&#39;)">✕</button>
+      <button class="modal-close" onclick="closeModal('studentModal')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="sId">
@@ -1263,9 +1296,11 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <div class="form-group">
           <label class="form-label">나이 (만 나이)</label>
           <div style="display:flex;gap:8px;align-items:center;">
-            <input class="form-control" id="sKorAge" type="text" placeholder="한국 나이" readonly="" style="background:var(--gray-50);color:var(--gray-800);cursor:default;font-weight:700;text-align:center;flex:1;">
+            <input class="form-control" id="sKorAge" type="text" placeholder="한국 나이" readonly
+              style="background:var(--gray-50);color:var(--gray-800);cursor:default;font-weight:700;text-align:center;flex:1;">
             <span style="font-size:.75rem;color:var(--gray-400);flex-shrink:0;">만</span>
-            <input class="form-control" id="sAge" type="text" placeholder="만 나이" readonly="" style="background:var(--gray-50);color:var(--gray-600);cursor:default;text-align:center;flex:1;">
+            <input class="form-control" id="sAge" type="text" placeholder="만 나이" readonly
+              style="background:var(--gray-50);color:var(--gray-600);cursor:default;text-align:center;flex:1;">
           </div>
           <div id="ageHint" style="font-size:.72rem;color:var(--gray-400);margin-top:4px;display:none;">
             🇰🇷 한국 나이 <strong id="ageKorDisplay"></strong>세 · 만 <strong id="ageIntDisplay"></strong>세
@@ -1274,7 +1309,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
       <div class="form-group">
         <label class="form-label">생년월일 (YYMMDD) <span style="font-size:.72rem;color:var(--primary);font-weight:400;">→ 입력 시 나이 자동 계산</span></label>
-        <input class="form-control" id="sBirth" placeholder="예) 120315 (2012년 3월 15일)" oninput="calcAgeFromBirth(this.value)">
+        <input class="form-control" id="sBirth" placeholder="예) 120315 (2012년 3월 15일)"
+          oninput="calcAgeFromBirth(this.value)">
       </div>
       <div class="form-group">
         <label class="form-label">학년-반</label>
@@ -1308,7 +1344,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" style="flex:1" onclick="closeModal(&#39;studentModal&#39;)">취소</button>
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal('studentModal')">취소</button>
       <button class="btn btn-primary" style="flex:2" onclick="submitStudent()">저장</button>
     </div>
   </div>
@@ -1319,7 +1355,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title" id="teacherModalTitle">교사 등록</div>
-      <button class="modal-close" onclick="closeModal(&#39;teacherModal&#39;)">✕</button>
+      <button class="modal-close" onclick="closeModal('teacherModal')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="tId">
@@ -1359,7 +1395,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" style="flex:1" onclick="closeModal(&#39;teacherModal&#39;)">취소</button>
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal('teacherModal')">취소</button>
       <button class="btn btn-primary" style="flex:2" onclick="submitTeacher()">저장</button>
     </div>
   </div>
@@ -1370,7 +1406,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title" id="detailTitle">상세 정보</div>
-      <button class="modal-close" onclick="closeModal(&#39;detailModal&#39;)">✕</button>
+      <button class="modal-close" onclick="closeModal('detailModal')">✕</button>
     </div>
     <div class="modal-body" id="detailBody"></div>
     <div class="modal-footer" id="detailFooter"></div>
@@ -1382,7 +1418,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title">정규 반 배정</div>
-      <button class="modal-close" onclick="closeModal(&#39;assignModal&#39;)">✕</button>
+      <button class="modal-close" onclick="closeModal('assignModal')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="assignStudentId">
@@ -1395,7 +1431,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" style="flex:1" onclick="closeModal(&#39;assignModal&#39;)">취소</button>
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal('assignModal')">취소</button>
       <button class="btn btn-success" style="flex:2" onclick="confirmAssign()">🎉 반 배정 완료</button>
     </div>
   </div>
@@ -1408,7 +1444,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyZvvtSfK42bPvzzA0Lira38jgckL3FngX2nypyvZQpabxIeSups86AFEEH4pKUAYuwIw/exec'; // ← 배포 후 웹앱 URL로 교체
+const GAS_URL = ''; // ← 배포 후 웹앱 URL로 교체
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -1423,6 +1459,26 @@ let currentUser = null; // { name, role, classGroup }
 
 // 교역자 구분 목록 (이 구분에 해당하면 admin)
 const ADMIN_ROLES = ['교역자', '목사', '전도사', '부장'];
+
+// ── 교역자(관리자) 이름 목록 ── 여기에 이름 추가/수정 ──────────
+const ADMIN_NAMES = ['문현철', '장수산나', '마혁수', '김정로', '최광식'];
+
+// ── 비밀번호 관리 (localStorage에 저장) ──────────────────────
+// ── 세션 버전 (변경 시 모든 기존 세션 무효화) ──────────────────
+const APP_SESSION_VERSION = 'v2.0';
+
+function getAdminPassword() {
+  try { return localStorage.getItem('adminPw') || '1234'; } catch(e) { return '1234'; }
+}
+function setAdminPassword(pw) {
+  try { localStorage.setItem('adminPw', pw); } catch(e) {}
+}
+function verifyAdminPassword(pw) {
+  return pw === getAdminPassword();
+}
+function isAdminName(name) {
+  return ADMIN_NAMES.includes(name);
+}
 const LEADERSHIP_ROLES = ['리더십', '리더'];
 const NEWBIE_TEACHER_ROLES = ['새친구', '새친구교사'];
 const ATTENDANCE_TEACHER_ROLES = ['담임', '부담임'];
@@ -1536,7 +1592,2678 @@ const _demo = {
     {학생ID:'S058',이름:'임수빈',['학년-반']:'중1-3반',담임교사:'최전도사',성별:'여',나이:13,생년월일:'120202',본인연락처:'',학부모연락처:'010-5058-6058',상태:'등록',주소:''},
     {학생ID:'S059',이름:'한지아',['학년-반']:'중1-3반',담임교사:'최전도사',성별:'여',나이:13,생년월일:'120219',본인연락처:'',학부모연락처:'010-5059-6059',상태:'등록',주소:''},
     {학생ID:'S060',이름:'오세연',['학년-반']:'중1-3반',담임교사:'최전도사',성별:'여',나이:13,생년월일:'120228',본인연락처:'',학부모연락처:'010-5060-6060',상태:'등록',주소:''},
-    {…</script>
+    {학생ID:'S061',이름:'신태양',['학년-반']:'중2-1반',담임교사:'정선생',성별:'남',나이:14,생년월일:'130627',본인연락처:'',학부모연락처:'010-3061-4061',상태:'등록',주소:''},
+    {학생ID:'S062',이름:'권도윤',['학년-반']:'중2-1반',담임교사:'정선생',성별:'남',나이:14,생년월일:'130912',본인연락처:'',학부모연락처:'010-3062-4062',상태:'등록',주소:''},
+    {학생ID:'S063',이름:'황성민',['학년-반']:'중2-1반',담임교사:'정선생',성별:'남',나이:14,생년월일:'130207',본인연락처:'',학부모연락처:'010-3063-4063',상태:'등록',주소:''},
+    {학생ID:'S064',이름:'류재혁',['학년-반']:'중2-1반',담임교사:'정선생',성별:'남',나이:14,생년월일:'131212',본인연락처:'',학부모연락처:'010-3064-4064',상태:'등록',주소:''},
+    {학생ID:'S065',이름:'노준혁',['학년-반']:'중2-1반',담임교사:'정선생',성별:'남',나이:14,생년월일:'130611',본인연락처:'',학부모연락처:'010-3065-4065',상태:'등록',주소:''},
+    {학생ID:'S066',이름:'신유진',['학년-반']:'중2-1반',담임교사:'정선생',성별:'여',나이:14,생년월일:'130714',본인연락처:'',학부모연락처:'010-5066-6066',상태:'등록',주소:''},
+    {학생ID:'S067',이름:'권나영',['학년-반']:'중2-1반',담임교사:'정선생',성별:'여',나이:14,생년월일:'130317',본인연락처:'',학부모연락처:'010-5067-6067',상태:'등록',주소:''},
+    {학생ID:'S068',이름:'황수빈',['학년-반']:'중2-1반',담임교사:'정선생',성별:'여',나이:14,생년월일:'130917',본인연락처:'',학부모연락처:'010-5068-6068',상태:'등록',주소:''},
+    {학생ID:'S069',이름:'류지원',['학년-반']:'중2-1반',담임교사:'정선생',성별:'여',나이:14,생년월일:'130201',본인연락처:'',학부모연락처:'010-5069-6069',상태:'등록',주소:''},
+    {학생ID:'S070',이름:'노은서',['학년-반']:'중2-1반',담임교사:'정선생',성별:'여',나이:14,생년월일:'130205',본인연락처:'',학부모연락처:'010-5070-6070',상태:'등록',주소:''},
+    {학생ID:'S071',이름:'문성호',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'130915',본인연락처:'',학부모연락처:'010-3071-4071',상태:'등록',주소:''},
+    {학생ID:'S072',이름:'백민성',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'131205',본인연락처:'',학부모연락처:'010-3072-4072',상태:'등록',주소:''},
+    {학생ID:'S073',이름:'송재현',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'130325',본인연락처:'',학부모연락처:'010-3073-4073',상태:'등록',주소:''},
+    {학생ID:'S074',이름:'안재현',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'130220',본인연락처:'',학부모연락처:'010-3074-4074',상태:'등록',주소:''},
+    {학생ID:'S075',이름:'엄태준',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'131024',본인연락처:'',학부모연락처:'010-3075-4075',상태:'등록',주소:''},
+    {학생ID:'S076',이름:'문하연',['학년-반']:'중2-2반',담임교사:'신선생',성별:'여',나이:14,생년월일:'130104',본인연락처:'',학부모연락처:'010-5076-6076',상태:'등록',주소:''},
+    {학생ID:'S077',이름:'백지수',['학년-반']:'중2-2반',담임교사:'신선생',성별:'여',나이:14,생년월일:'130218',본인연락처:'',학부모연락처:'010-5077-6077',상태:'등록',주소:''},
+    {학생ID:'S078',이름:'송아름',['학년-반']:'중2-2반',담임교사:'신선생',성별:'여',나이:14,생년월일:'130218',본인연락처:'',학부모연락처:'010-5078-6078',상태:'등록',주소:''},
+    {학생ID:'S079',이름:'안소이',['학년-반']:'중2-2반',담임교사:'신선생',성별:'여',나이:14,생년월일:'130412',본인연락처:'',학부모연락처:'010-5079-6079',상태:'등록',주소:''},
+    {학생ID:'S080',이름:'엄지윤',['학년-반']:'중2-2반',담임교사:'신선생',성별:'여',나이:14,생년월일:'131009',본인연락처:'',학부모연락처:'010-5080-6080',상태:'등록',주소:''},
+    {학생ID:'S081',이름:'김민준',['학년-반']:'중2-3반',담임교사:'강선생',성별:'남',나이:14,생년월일:'130321',본인연락처:'',학부모연락처:'010-3081-4081',상태:'등록',주소:''},
+    {학생ID:'S082',이름:'이도현',['학년-반']:'중2-3반',담임교사:'강선생',성별:'남',나이:14,생년월일:'131207',본인연락처:'',학부모연락처:'010-3082-4082',상태:'등록',주소:''},
+    {학생ID:'S083',이름:'박지후',['학년-반']:'중2-3반',담임교사:'강선생',성별:'남',나이:14,생년월일:'130812',본인연락처:'',학부모연락처:'010-3083-4083',상태:'등록',주소:''},
+    {학생ID:'S084',이름:'최준서',['학년-반']:'중2-3반',담임교사:'강선생',성별:'남',나이:14,생년월일:'130202',본인연락처:'',학부모연락처:'010-3084-4084',상태:'등록',주소:''},
+    {학생ID:'S085',이름:'정우진',['학년-반']:'중2-3반',담임교사:'강선생',성별:'남',나이:14,생년월일:'131201',본인연락처:'',학부모연락처:'010-3085-4085',상태:'등록',주소:''},
+    {학생ID:'S086',이름:'박서연',['학년-반']:'중2-3반',담임교사:'강선생',성별:'여',나이:14,생년월일:'131226',본인연락처:'',학부모연락처:'010-5086-6086',상태:'등록',주소:''},
+    {학생ID:'S087',이름:'최예진',['학년-반']:'중2-3반',담임교사:'강선생',성별:'여',나이:14,생년월일:'131107',본인연락처:'',학부모연락처:'010-5087-6087',상태:'등록',주소:''},
+    {학생ID:'S088',이름:'이수아',['학년-반']:'중2-3반',담임교사:'강선생',성별:'여',나이:14,생년월일:'131217',본인연락처:'',학부모연락처:'010-5088-6088',상태:'등록',주소:''},
+    {학생ID:'S089',이름:'정하은',['학년-반']:'중2-3반',담임교사:'강선생',성별:'여',나이:14,생년월일:'130205',본인연락처:'',학부모연락처:'010-5089-6089',상태:'등록',주소:''},
+    {학생ID:'S090',이름:'김지유',['학년-반']:'중2-3반',담임교사:'강선생',성별:'여',나이:14,생년월일:'130914',본인연락처:'',학부모연락처:'010-5090-6090',상태:'등록',주소:''},
+    {학생ID:'S091',이름:'강민재',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'남',나이:15,생년월일:'141205',본인연락처:'',학부모연락처:'010-3091-4091',상태:'등록',주소:''},
+    {학생ID:'S092',이름:'윤서준',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'남',나이:15,생년월일:'140102',본인연락처:'',학부모연락처:'010-3092-4092',상태:'등록',주소:''},
+    {학생ID:'S093',이름:'임현우',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'남',나이:15,생년월일:'140122',본인연락처:'',학부모연락처:'010-3093-4093',상태:'등록',주소:''},
+    {학생ID:'S094',이름:'한재원',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'남',나이:15,생년월일:'141108',본인연락처:'',학부모연락처:'010-3094-4094',상태:'등록',주소:''},
+    {학생ID:'S095',이름:'오승현',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'남',나이:15,생년월일:'140404',본인연락처:'',학부모연락처:'010-3095-4095',상태:'등록',주소:''},
+    {학생ID:'S096',이름:'윤채원',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'140724',본인연락처:'',학부모연락처:'010-5096-6096',상태:'등록',주소:''},
+    {학생ID:'S097',이름:'강하린',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'141215',본인연락처:'',학부모연락처:'010-5097-6097',상태:'등록',주소:''},
+    {학생ID:'S098',이름:'임수빈',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'141112',본인연락처:'',학부모연락처:'010-5098-6098',상태:'등록',주소:''},
+    {학생ID:'S099',이름:'한지아',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'140813',본인연락처:'',학부모연락처:'010-5099-6099',상태:'등록',주소:''},
+    {학생ID:'S100',이름:'오세연',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'141027',본인연락처:'',학부모연락처:'010-5100-6100',상태:'등록',주소:''},
+    {학생ID:'S101',이름:'신태양',['학년-반']:'중3-2반',담임교사:'권선생',성별:'남',나이:15,생년월일:'140117',본인연락처:'',학부모연락처:'010-3101-4101',상태:'등록',주소:''},
+    {학생ID:'S102',이름:'권도윤',['학년-반']:'중3-2반',담임교사:'권선생',성별:'남',나이:15,생년월일:'141007',본인연락처:'',학부모연락처:'010-3102-4102',상태:'등록',주소:''},
+    {학생ID:'S103',이름:'황성민',['학년-반']:'중3-2반',담임교사:'권선생',성별:'남',나이:15,생년월일:'140219',본인연락처:'',학부모연락처:'010-3103-4103',상태:'등록',주소:''},
+    {학생ID:'S104',이름:'류재혁',['학년-반']:'중3-2반',담임교사:'권선생',성별:'남',나이:15,생년월일:'140622',본인연락처:'',학부모연락처:'010-3104-4104',상태:'등록',주소:''},
+    {학생ID:'S105',이름:'노준혁',['학년-반']:'중3-2반',담임교사:'권선생',성별:'남',나이:15,생년월일:'140122',본인연락처:'',학부모연락처:'010-3105-4105',상태:'등록',주소:''},
+    {학생ID:'S106',이름:'신유진',['학년-반']:'중3-2반',담임교사:'권선생',성별:'여',나이:15,생년월일:'141012',본인연락처:'',학부모연락처:'010-5106-6106',상태:'등록',주소:''},
+    {학생ID:'S107',이름:'권나영',['학년-반']:'중3-2반',담임교사:'권선생',성별:'여',나이:15,생년월일:'141116',본인연락처:'',학부모연락처:'010-5107-6107',상태:'등록',주소:''},
+    {학생ID:'S108',이름:'황수빈',['학년-반']:'중3-2반',담임교사:'권선생',성별:'여',나이:15,생년월일:'140306',본인연락처:'',학부모연락처:'010-5108-6108',상태:'등록',주소:''},
+    {학생ID:'S109',이름:'류지원',['학년-반']:'중3-2반',담임교사:'권선생',성별:'여',나이:15,생년월일:'140512',본인연락처:'',학부모연락처:'010-5109-6109',상태:'등록',주소:''},
+    {학생ID:'S110',이름:'노은서',['학년-반']:'중3-2반',담임교사:'권선생',성별:'여',나이:15,생년월일:'140201',본인연락처:'',학부모연락처:'010-5110-6110',상태:'등록',주소:''},
+    {학생ID:'S111',이름:'문성호',['학년-반']:'중3-3반',담임교사:'임선생',성별:'남',나이:15,생년월일:'141126',본인연락처:'',학부모연락처:'010-3111-4111',상태:'등록',주소:''},
+    {학생ID:'S112',이름:'백민성',['학년-반']:'중3-3반',담임교사:'임선생',성별:'남',나이:15,생년월일:'141021',본인연락처:'',학부모연락처:'010-3112-4112',상태:'등록',주소:''},
+    {학생ID:'S113',이름:'송재현',['학년-반']:'중3-3반',담임교사:'임선생',성별:'남',나이:15,생년월일:'140509',본인연락처:'',학부모연락처:'010-3113-4113',상태:'등록',주소:''},
+    {학생ID:'S114',이름:'안재현',['학년-반']:'중3-3반',담임교사:'임선생',성별:'남',나이:15,생년월일:'141201',본인연락처:'',학부모연락처:'010-3114-4114',상태:'등록',주소:''},
+    {학생ID:'S115',이름:'엄태준',['학년-반']:'중3-3반',담임교사:'임선생',성별:'남',나이:15,생년월일:'140911',본인연락처:'',학부모연락처:'010-3115-4115',상태:'등록',주소:''},
+    {학생ID:'S116',이름:'문하연',['학년-반']:'중3-3반',담임교사:'임선생',성별:'여',나이:15,생년월일:'140820',본인연락처:'',학부모연락처:'010-5116-6116',상태:'등록',주소:''},
+    {학생ID:'S117',이름:'백지수',['학년-반']:'중3-3반',담임교사:'임선생',성별:'여',나이:15,생년월일:'141101',본인연락처:'',학부모연락처:'010-5117-6117',상태:'등록',주소:''},
+    {학생ID:'S118',이름:'송아름',['학년-반']:'중3-3반',담임교사:'임선생',성별:'여',나이:15,생년월일:'141115',본인연락처:'',학부모연락처:'010-5118-6118',상태:'등록',주소:''},
+    {학생ID:'S119',이름:'안소이',['학년-반']:'중3-3반',담임교사:'임선생',성별:'여',나이:15,생년월일:'140427',본인연락처:'',학부모연락처:'010-5119-6119',상태:'등록',주소:''},
+    {학생ID:'S120',이름:'엄지윤',['학년-반']:'중3-3반',담임교사:'임선생',성별:'여',나이:15,생년월일:'140109',본인연락처:'',학부모연락처:'010-5120-6120',상태:'등록',주소:''},
+    {학생ID:'S121',이름:'김민준',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'150225',본인연락처:'',학부모연락처:'010-3121-4121',상태:'등록',주소:''},
+    {학생ID:'S122',이름:'이도현',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'151025',본인연락처:'',학부모연락처:'010-3122-4122',상태:'등록',주소:''},
+    {학생ID:'S123',이름:'박지후',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'150805',본인연락처:'',학부모연락처:'010-3123-4123',상태:'등록',주소:''},
+    {학생ID:'S124',이름:'최준서',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'150528',본인연락처:'',학부모연락처:'010-3124-4124',상태:'등록',주소:''},
+    {학생ID:'S125',이름:'정우진',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'150816',본인연락처:'',학부모연락처:'010-3125-4125',상태:'등록',주소:''},
+    {학생ID:'S126',이름:'박서연',['학년-반']:'고1-1반',담임교사:'김목사',성별:'여',나이:16,생년월일:'150817',본인연락처:'',학부모연락처:'010-5126-6126',상태:'등록',주소:''},
+    {학생ID:'S127',이름:'최예진',['학년-반']:'고1-1반',담임교사:'김목사',성별:'여',나이:16,생년월일:'150108',본인연락처:'',학부모연락처:'010-5127-6127',상태:'등록',주소:''},
+    {학생ID:'S128',이름:'이수아',['학년-반']:'고1-1반',담임교사:'김목사',성별:'여',나이:16,생년월일:'150214',본인연락처:'',학부모연락처:'010-5128-6128',상태:'등록',주소:''},
+    {학생ID:'S129',이름:'정하은',['학년-반']:'고1-1반',담임교사:'김목사',성별:'여',나이:16,생년월일:'151011',본인연락처:'',학부모연락처:'010-5129-6129',상태:'등록',주소:''},
+    {학생ID:'S130',이름:'김지유',['학년-반']:'고1-1반',담임교사:'김목사',성별:'여',나이:16,생년월일:'150917',본인연락처:'',학부모연락처:'010-5130-6130',상태:'등록',주소:''},
+    {학생ID:'S131',이름:'강민재',['학년-반']:'고1-2반',담임교사:'황선생',성별:'남',나이:16,생년월일:'150505',본인연락처:'',학부모연락처:'010-3131-4131',상태:'등록',주소:''},
+    {학생ID:'S132',이름:'윤서준',['학년-반']:'고1-2반',담임교사:'황선생',성별:'남',나이:16,생년월일:'150506',본인연락처:'',학부모연락처:'010-3132-4132',상태:'등록',주소:''},
+    {학생ID:'S133',이름:'임현우',['학년-반']:'고1-2반',담임교사:'황선생',성별:'남',나이:16,생년월일:'150627',본인연락처:'',학부모연락처:'010-3133-4133',상태:'등록',주소:''},
+    {학생ID:'S134',이름:'한재원',['학년-반']:'고1-2반',담임교사:'황선생',성별:'남',나이:16,생년월일:'150103',본인연락처:'',학부모연락처:'010-3134-4134',상태:'등록',주소:''},
+    {학생ID:'S135',이름:'오승현',['학년-반']:'고1-2반',담임교사:'황선생',성별:'남',나이:16,생년월일:'150926',본인연락처:'',학부모연락처:'010-3135-4135',상태:'등록',주소:''},
+    {학생ID:'S136',이름:'윤채원',['학년-반']:'고1-2반',담임교사:'황선생',성별:'여',나이:16,생년월일:'150210',본인연락처:'',학부모연락처:'010-5136-6136',상태:'등록',주소:''},
+    {학생ID:'S137',이름:'강하린',['학년-반']:'고1-2반',담임교사:'황선생',성별:'여',나이:16,생년월일:'150125',본인연락처:'',학부모연락처:'010-5137-6137',상태:'등록',주소:''},
+    {학생ID:'S138',이름:'임수빈',['학년-반']:'고1-2반',담임교사:'황선생',성별:'여',나이:16,생년월일:'151111',본인연락처:'',학부모연락처:'010-5138-6138',상태:'등록',주소:''},
+    {학생ID:'S139',이름:'한지아',['학년-반']:'고1-2반',담임교사:'황선생',성별:'여',나이:16,생년월일:'151207',본인연락처:'',학부모연락처:'010-5139-6139',상태:'등록',주소:''},
+    {학생ID:'S140',이름:'오세연',['학년-반']:'고1-2반',담임교사:'황선생',성별:'여',나이:16,생년월일:'150225',본인연락처:'',학부모연락처:'010-5140-6140',상태:'등록',주소:''},
+    {학생ID:'S141',이름:'신태양',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'남',나이:16,생년월일:'150705',본인연락처:'',학부모연락처:'010-3141-4141',상태:'등록',주소:''},
+    {학생ID:'S142',이름:'권도윤',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'남',나이:16,생년월일:'151225',본인연락처:'',학부모연락처:'010-3142-4142',상태:'등록',주소:''},
+    {학생ID:'S143',이름:'황성민',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'남',나이:16,생년월일:'150214',본인연락처:'',학부모연락처:'010-3143-4143',상태:'등록',주소:''},
+    {학생ID:'S144',이름:'류재혁',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'남',나이:16,생년월일:'150201',본인연락처:'',학부모연락처:'010-3144-4144',상태:'등록',주소:''},
+    {학생ID:'S145',이름:'노준혁',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'남',나이:16,생년월일:'150123',본인연락처:'',학부모연락처:'010-3145-4145',상태:'등록',주소:''},
+    {학생ID:'S146',이름:'신유진',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'150305',본인연락처:'',학부모연락처:'010-5146-6146',상태:'등록',주소:''},
+    {학생ID:'S147',이름:'권나영',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'151106',본인연락처:'',학부모연락처:'010-5147-6147',상태:'등록',주소:''},
+    {학생ID:'S148',이름:'황수빈',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'150317',본인연락처:'',학부모연락처:'010-5148-6148',상태:'등록',주소:''},
+    {학생ID:'S149',이름:'류지원',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'150602',본인연락처:'',학부모연락처:'010-5149-6149',상태:'등록',주소:''},
+    {학생ID:'S150',이름:'노은서',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'151227',본인연락처:'',학부모연락처:'010-5150-6150',상태:'등록',주소:''},
+    {학생ID:'S151',이름:'문성호',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'남',나이:17,생년월일:'160111',본인연락처:'',학부모연락처:'010-3151-4151',상태:'등록',주소:''},
+    {학생ID:'S152',이름:'백민성',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'남',나이:17,생년월일:'160319',본인연락처:'',학부모연락처:'010-3152-4152',상태:'등록',주소:''},
+    {학생ID:'S153',이름:'송재현',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'남',나이:17,생년월일:'161216',본인연락처:'',학부모연락처:'010-3153-4153',상태:'등록',주소:''},
+    {학생ID:'S154',이름:'안재현',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'남',나이:17,생년월일:'160321',본인연락처:'',학부모연락처:'010-3154-4154',상태:'등록',주소:''},
+    {학생ID:'S155',이름:'엄태준',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'남',나이:17,생년월일:'161117',본인연락처:'',학부모연락처:'010-3155-4155',상태:'등록',주소:''},
+    {학생ID:'S156',이름:'문하연',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'여',나이:17,생년월일:'160110',본인연락처:'',학부모연락처:'010-5156-6156',상태:'등록',주소:''},
+    {학생ID:'S157',이름:'백지수',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'여',나이:17,생년월일:'160302',본인연락처:'',학부모연락처:'010-5157-6157',상태:'등록',주소:''},
+    {학생ID:'S158',이름:'송아름',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'여',나이:17,생년월일:'160925',본인연락처:'',학부모연락처:'010-5158-6158',상태:'등록',주소:''},
+    {학생ID:'S159',이름:'안소이',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'여',나이:17,생년월일:'161019',본인연락처:'',학부모연락처:'010-5159-6159',상태:'등록',주소:''},
+    {학생ID:'S160',이름:'엄지윤',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'여',나이:17,생년월일:'160412',본인연락처:'',학부모연락처:'010-5160-6160',상태:'등록',주소:''},
+    {학생ID:'S161',이름:'김민준',['학년-반']:'고2-2반',담임교사:'류선생',성별:'남',나이:17,생년월일:'160527',본인연락처:'',학부모연락처:'010-3161-4161',상태:'등록',주소:''},
+    {학생ID:'S162',이름:'이도현',['학년-반']:'고2-2반',담임교사:'류선생',성별:'남',나이:17,생년월일:'160202',본인연락처:'',학부모연락처:'010-3162-4162',상태:'등록',주소:''},
+    {학생ID:'S163',이름:'박지후',['학년-반']:'고2-2반',담임교사:'류선생',성별:'남',나이:17,생년월일:'160605',본인연락처:'',학부모연락처:'010-3163-4163',상태:'등록',주소:''},
+    {학생ID:'S164',이름:'최준서',['학년-반']:'고2-2반',담임교사:'류선생',성별:'남',나이:17,생년월일:'161227',본인연락처:'',학부모연락처:'010-3164-4164',상태:'등록',주소:''},
+    {학생ID:'S165',이름:'정우진',['학년-반']:'고2-2반',담임교사:'류선생',성별:'남',나이:17,생년월일:'160503',본인연락처:'',학부모연락처:'010-3165-4165',상태:'등록',주소:''},
+    {학생ID:'S166',이름:'박서연',['학년-반']:'고2-2반',담임교사:'류선생',성별:'여',나이:17,생년월일:'160409',본인연락처:'',학부모연락처:'010-5166-6166',상태:'등록',주소:''},
+    {학생ID:'S167',이름:'최예진',['학년-반']:'고2-2반',담임교사:'류선생',성별:'여',나이:17,생년월일:'161001',본인연락처:'',학부모연락처:'010-5167-6167',상태:'등록',주소:''},
+    {학생ID:'S168',이름:'이수아',['학년-반']:'고2-2반',담임교사:'류선생',성별:'여',나이:17,생년월일:'160507',본인연락처:'',학부모연락처:'010-5168-6168',상태:'등록',주소:''},
+    {학생ID:'S169',이름:'정하은',['학년-반']:'고2-2반',담임교사:'류선생',성별:'여',나이:17,생년월일:'161025',본인연락처:'',학부모연락처:'010-5169-6169',상태:'등록',주소:''},
+    {학생ID:'S170',이름:'김지유',['학년-반']:'고2-2반',담임교사:'류선생',성별:'여',나이:17,생년월일:'161109',본인연락처:'',학부모연락처:'010-5170-6170',상태:'등록',주소:''},
+    {학생ID:'S171',이름:'강민재',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'남',나이:17,생년월일:'160914',본인연락처:'',학부모연락처:'010-3171-4171',상태:'등록',주소:''},
+    {학생ID:'S172',이름:'윤서준',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'남',나이:17,생년월일:'160422',본인연락처:'',학부모연락처:'010-3172-4172',상태:'등록',주소:''},
+    {학생ID:'S173',이름:'임현우',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'남',나이:17,생년월일:'160401',본인연락처:'',학부모연락처:'010-3173-4173',상태:'등록',주소:''},
+    {학생ID:'S174',이름:'한재원',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'남',나이:17,생년월일:'160903',본인연락처:'',학부모연락처:'010-3174-4174',상태:'등록',주소:''},
+    {학생ID:'S175',이름:'오승현',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'남',나이:17,생년월일:'160813',본인연락처:'',학부모연락처:'010-3175-4175',상태:'등록',주소:''},
+    {학생ID:'S176',이름:'윤채원',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'여',나이:17,생년월일:'160420',본인연락처:'',학부모연락처:'010-5176-6176',상태:'등록',주소:''},
+    {학생ID:'S177',이름:'강하린',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'여',나이:17,생년월일:'161128',본인연락처:'',학부모연락처:'010-5177-6177',상태:'등록',주소:''},
+    {학생ID:'S178',이름:'임수빈',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'여',나이:17,생년월일:'160904',본인연락처:'',학부모연락처:'010-5178-6178',상태:'등록',주소:''},
+    {학생ID:'S179',이름:'한지아',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'여',나이:17,생년월일:'160825',본인연락처:'',학부모연락처:'010-5179-6179',상태:'등록',주소:''},
+    {학생ID:'S180',이름:'오세연',['학년-반']:'고2-3반',담임교사:'최전도사',성별:'여',나이:17,생년월일:'160208',본인연락처:'',학부모연락처:'010-5180-6180',상태:'등록',주소:''},
+    {학생ID:'S181',이름:'신태양',['학년-반']:'고3-1반',담임교사:'정선생',성별:'남',나이:18,생년월일:'171210',본인연락처:'',학부모연락처:'010-3181-4181',상태:'등록',주소:''},
+    {학생ID:'S182',이름:'권도윤',['학년-반']:'고3-1반',담임교사:'정선생',성별:'남',나이:18,생년월일:'170618',본인연락처:'',학부모연락처:'010-3182-4182',상태:'등록',주소:''},
+    {학생ID:'S183',이름:'황성민',['학년-반']:'고3-1반',담임교사:'정선생',성별:'남',나이:18,생년월일:'170307',본인연락처:'',학부모연락처:'010-3183-4183',상태:'등록',주소:''},
+    {학생ID:'S184',이름:'류재혁',['학년-반']:'고3-1반',담임교사:'정선생',성별:'남',나이:18,생년월일:'170617',본인연락처:'',학부모연락처:'010-3184-4184',상태:'등록',주소:''},
+    {학생ID:'S185',이름:'노준혁',['학년-반']:'고3-1반',담임교사:'정선생',성별:'남',나이:18,생년월일:'171202',본인연락처:'',학부모연락처:'010-3185-4185',상태:'등록',주소:''},
+    {학생ID:'S186',이름:'신유진',['학년-반']:'고3-1반',담임교사:'정선생',성별:'여',나이:18,생년월일:'170501',본인연락처:'',학부모연락처:'010-5186-6186',상태:'등록',주소:''},
+    {학생ID:'S187',이름:'권나영',['학년-반']:'고3-1반',담임교사:'정선생',성별:'여',나이:18,생년월일:'170814',본인연락처:'',학부모연락처:'010-5187-6187',상태:'등록',주소:''},
+    {학생ID:'S188',이름:'황수빈',['학년-반']:'고3-1반',담임교사:'정선생',성별:'여',나이:18,생년월일:'170716',본인연락처:'',학부모연락처:'010-5188-6188',상태:'등록',주소:''},
+    {학생ID:'S189',이름:'류지원',['학년-반']:'고3-1반',담임교사:'정선생',성별:'여',나이:18,생년월일:'170522',본인연락처:'',학부모연락처:'010-5189-6189',상태:'등록',주소:''},
+    {학생ID:'S190',이름:'노은서',['학년-반']:'고3-1반',담임교사:'정선생',성별:'여',나이:18,생년월일:'170306',본인연락처:'',학부모연락처:'010-5190-6190',상태:'등록',주소:''},
+    {학생ID:'S191',이름:'문성호',['학년-반']:'고3-2반',담임교사:'노선생',성별:'남',나이:18,생년월일:'171027',본인연락처:'',학부모연락처:'010-3191-4191',상태:'등록',주소:''},
+    {학생ID:'S192',이름:'백민성',['학년-반']:'고3-2반',담임교사:'노선생',성별:'남',나이:18,생년월일:'171120',본인연락처:'',학부모연락처:'010-3192-4192',상태:'등록',주소:''},
+    {학생ID:'S193',이름:'송재현',['학년-반']:'고3-2반',담임교사:'노선생',성별:'남',나이:18,생년월일:'170717',본인연락처:'',학부모연락처:'010-3193-4193',상태:'등록',주소:''},
+    {학생ID:'S194',이름:'안재현',['학년-반']:'고3-2반',담임교사:'노선생',성별:'남',나이:18,생년월일:'170108',본인연락처:'',학부모연락처:'010-3194-4194',상태:'등록',주소:''},
+    {학생ID:'S195',이름:'엄태준',['학년-반']:'고3-2반',담임교사:'노선생',성별:'남',나이:18,생년월일:'170419',본인연락처:'',학부모연락처:'010-3195-4195',상태:'등록',주소:''},
+    {학생ID:'S196',이름:'문하연',['학년-반']:'고3-2반',담임교사:'노선생',성별:'여',나이:18,생년월일:'170116',본인연락처:'',학부모연락처:'010-5196-6196',상태:'등록',주소:''},
+    {학생ID:'S197',이름:'백지수',['학년-반']:'고3-2반',담임교사:'노선생',성별:'여',나이:18,생년월일:'170112',본인연락처:'',학부모연락처:'010-5197-6197',상태:'등록',주소:''},
+    {학생ID:'S198',이름:'송아름',['학년-반']:'고3-2반',담임교사:'노선생',성별:'여',나이:18,생년월일:'170521',본인연락처:'',학부모연락처:'010-5198-6198',상태:'등록',주소:''},
+    {학생ID:'S199',이름:'안소이',['학년-반']:'고3-2반',담임교사:'노선생',성별:'여',나이:18,생년월일:'170909',본인연락처:'',학부모연락처:'010-5199-6199',상태:'등록',주소:''},
+    {학생ID:'S200',이름:'엄지윤',['학년-반']:'고3-2반',담임교사:'노선생',성별:'여',나이:18,생년월일:'170424',본인연락처:'',학부모연락처:'010-5200-6200',상태:'등록',주소:''},
+    {학생ID:'S201',이름:'김민준',['학년-반']:'고3-3반',담임교사:'강선생',성별:'남',나이:18,생년월일:'170110',본인연락처:'',학부모연락처:'010-3201-4201',상태:'등록',주소:''},
+    {학생ID:'S202',이름:'이도현',['학년-반']:'고3-3반',담임교사:'강선생',성별:'남',나이:18,생년월일:'170709',본인연락처:'',학부모연락처:'010-3202-4202',상태:'등록',주소:''},
+    {학생ID:'S203',이름:'박지후',['학년-반']:'고3-3반',담임교사:'강선생',성별:'남',나이:18,생년월일:'170126',본인연락처:'',학부모연락처:'010-3203-4203',상태:'등록',주소:''},
+    {학생ID:'S204',이름:'최준서',['학년-반']:'고3-3반',담임교사:'강선생',성별:'남',나이:18,생년월일:'171005',본인연락처:'',학부모연락처:'010-3204-4204',상태:'등록',주소:''},
+    {학생ID:'S205',이름:'정우진',['학년-반']:'고3-3반',담임교사:'강선생',성별:'남',나이:18,생년월일:'170515',본인연락처:'',학부모연락처:'010-3205-4205',상태:'등록',주소:''},
+    {학생ID:'S206',이름:'박서연',['학년-반']:'고3-3반',담임교사:'강선생',성별:'여',나이:18,생년월일:'170511',본인연락처:'',학부모연락처:'010-5206-6206',상태:'등록',주소:''},
+    {학생ID:'S207',이름:'최예진',['학년-반']:'고3-3반',담임교사:'강선생',성별:'여',나이:18,생년월일:'170716',본인연락처:'',학부모연락처:'010-5207-6207',상태:'등록',주소:''},
+    {학생ID:'S208',이름:'이수아',['학년-반']:'고3-3반',담임교사:'강선생',성별:'여',나이:18,생년월일:'170823',본인연락처:'',학부모연락처:'010-5208-6208',상태:'등록',주소:''},
+    {학생ID:'S209',이름:'정하은',['학년-반']:'고3-3반',담임교사:'강선생',성별:'여',나이:18,생년월일:'170804',본인연락처:'',학부모연락처:'010-5209-6209',상태:'등록',주소:''},
+    {학생ID:'S210',이름:'김지유',['학년-반']:'고3-3반',담임교사:'강선생',성별:'여',나이:18,생년월일:'170626',본인연락처:'',학부모연락처:'010-5210-6210',상태:'등록',주소:''}
+  ],
+  teachers: [
+    {교사ID:'T001',이름:'문현철',['담당 학년-반']:'',연락처:'010-0001-0001',생년월일:'',구분:'교역자',주소:''},
+    {교사ID:'T002',이름:'장수산나',['담당 학년-반']:'',연락처:'010-0002-0002',생년월일:'',구분:'교역자',주소:''},
+    {교사ID:'T003',이름:'마혁수',['담당 학년-반']:'',연락처:'010-0003-0003',생년월일:'',구분:'교역자',주소:''},
+    {교사ID:'T004',이름:'김정로',['담당 학년-반']:'',연락처:'010-0004-0004',생년월일:'',구분:'교역자',주소:''},
+    {교사ID:'T005',이름:'최광식',['담당 학년-반']:'',연락처:'010-0005-0005',생년월일:'',구분:'교역자',주소:''},
+    {교사ID:'T006',이름:'김목사',['담당 학년-반']:'초6-1반',연락처:'010-1001-2001',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T007',이름:'한선생',['담당 학년-반']:'초6-2반',연락처:'010-1002-2002',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T008',이름:'이전도사',['담당 학년-반']:'초6-3반',연락처:'010-1003-2003',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T009',이름:'박전도사',['담당 학년-반']:'중1-1반',연락처:'010-1004-2004',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T010',이름:'오선생',['담당 학년-반']:'중1-2반',연락처:'010-1005-2005',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T011',이름:'최전도사',['담당 학년-반']:'중1-3반',연락처:'010-1006-2006',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T012',이름:'정선생',['담당 학년-반']:'중2-1반',연락처:'010-1007-2007',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T013',이름:'신선생',['담당 학년-반']:'중2-2반',연락처:'010-1008-2008',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T014',이름:'강선생',['담당 학년-반']:'중2-3반',연락처:'010-1009-2009',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T015',이름:'윤선생',['담당 학년-반']:'중3-1반',연락처:'010-1010-2010',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T016',이름:'권선생',['담당 학년-반']:'중3-2반',연락처:'010-1011-2011',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T017',이름:'임선생',['담당 학년-반']:'중3-3반',연락처:'010-1012-2012',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T018',이름:'홍선생',['담당 학년-반']:'고1-1반',연락처:'010-1013-2013',생년월일:'',구분:'담임',주소:''},
+    {교사ID:'T014',이름:'황선생',['담당 학년-반']:'고1-2반',연락처:'010-1014-2014',구분:'담임'},
+    {교사ID:'T015',이름:'이전도사',['담당 학년-반']:'고1-3반',연락처:'010-1015-2015',구분:'담임'},
+    {교사ID:'T016',이름:'박전도사',['담당 학년-반']:'고2-1반',연락처:'010-1016-2016',구분:'담임'},
+    {교사ID:'T017',이름:'류선생',['담당 학년-반']:'고2-2반',연락처:'010-1017-2017',구분:'담임'},
+    {교사ID:'T018',이름:'최전도사',['담당 학년-반']:'고2-3반',연락처:'010-1018-2018',구분:'담임'},
+    {교사ID:'T019',이름:'정선생',['담당 학년-반']:'고3-1반',연락처:'010-1019-2019',구분:'담임'},
+    {교사ID:'T020',이름:'노선생',['담당 학년-반']:'고3-2반',연락처:'010-1020-2020',구분:'담임'},
+    {교사ID:'T021',이름:'강선생',['담당 학년-반']:'고3-3반',연락처:'010-1021-2021',구분:'담임'},
+    {교사ID:'T022',이름:'김목사님',['담당 학년-반']:'',연락처:'010-0001-0001',구분:'교역자'},
+    {교사ID:'T023',이름:'이전도사님',['담당 학년-반']:'',연락처:'010-0001-0002',구분:'전도사'},
+    {교사ID:'T024',이름:'새친구선생',['담당 학년-반']:'',연락처:'010-0001-0003',구분:'새친구'},
+    {교사ID:'T025',이름:'리더십선생',['담당 학년-반']:'',연락처:'010-0001-0004',구분:'리더십'}
+  ],
+  newbies: [
+    {학생ID:'NB001',이름:'홍길동','1주차날짜':'01.05','1주차출결':'출석','2주차날짜':'01.12','2주차출결':'출석','3주차날짜':'01.19','3주차출결':'출석','4주차날짜':'','4주차출결':'',반배정완료여부:'FALSE'},
+    {학생ID:'NB002',이름:'이영희','1주차날짜':'01.12','1주차출결':'출석','2주차날짜':'01.19','2주차출결':'출석','3주차날짜':'','3주차출결':'','4주차날짜':'','4주차출결':'',반배정완료여부:'FALSE'},
+  ],
+  // newbie cross-ref in students (auto-synced)
+  _newbieStudents: [
+    {학생ID:'NB001',이름:'홍길동',['학년-반']:'새친구',담임교사:'',성별:'',나이:'',생년월일:'',본인연락처:'',학부모연락처:'',상태:'새친구',주소:''},
+    {학생ID:'NB002',이름:'이영희',['학년-반']:'새친구',담임교사:'',성별:'',나이:'',생년월일:'',본인연락처:'',학부모연락처:'',상태:'새친구',주소:''},
+  ],
+  attendance: {}, // { 'YYYY-MM-DD_classGroup': [{studentId, name, status, reason}] }
+  _nextId: 221,
+};
+
+function _demoGenId(prefix) {
+  return prefix + String(_demo._nextId++).padStart(3,'0');
+}
+
+function _demoNewbieRow(id, name) {
+  return {
+    학생ID:id, 이름:name,
+    '1주차날짜':'','1주차출결':'',
+    '2주차날짜':'','2주차출결':'',
+    '3주차날짜':'','3주차출결':'',
+    '4주차날짜':'','4주차출결':'',
+    반배정완료여부:'FALSE'
+  };
+}
+
+function getDemoData(action, payload) {
+  switch(action) {
+    case 'getStudents': return {success:true, data: _demo.students.map(s=>({...s}))};
+    case 'getTeachers': return {success:true, data: _demo.teachers.map(t=>({...t}))};
+    case 'getNewbies':  return {success:true, data: _demo.newbies.map(n=>({...n}))};
+    case 'getSundays':  return {success:true, data: getSundays2026()};
+
+    case 'getAttendance': {
+      const cls  = payload.classGroup;
+      const date = payload.date;
+      const key  = `${date}_${cls}`;
+
+      if (cls === '__teachers__') {
+        const saved = _demo.attendance[key] || [];
+        const result = _demo.teachers.map(t => {
+          const prev = saved.find(r => r.studentId === t['교사ID']);
+          return { studentId: t['교사ID'], name: t['이름'], classGroup: '__teachers__',
+                   status: prev ? prev.status : '미체크', reason: prev ? prev.reason : '',
+                   _isTeacher: true, _role: t['구분'], _class: t['담당 학년-반'] || '' };
+        });
+        return { success: true, data: { students: result, sundays: getSundays2026() } };
+      }
+
+      const validStatuses = ['등록','심방필요','장결자']; // 유학중·새친구 제외
+      const studs = _demo.students
+        .filter(s => s['학년-반'] === cls && validStatuses.includes(s['상태']))
+        .sort((a,b) => a['이름'].localeCompare(b['이름'],'ko'));
+      const saved = _demo.attendance[key] || [];
+      const result = studs.map(s => {
+        const prev = saved.find(r => r.studentId === s['학생ID']);
+        return { studentId: s['학생ID'], name: s['이름'], classGroup: cls,
+                 status: prev ? prev.status : '미체크', reason: prev ? prev.reason : '' };
+      });
+      return { success: true, data: { students: result, sundays: getSundays2026() } };
+    }
+
+    case 'saveAttendance': {
+      const key = `${payload.date}_${payload.classGroup}`;
+      _demo.attendance[key] = payload.records;
+      return { success: true, data: null, message: '출석이 저장되었습니다.' };
+    }
+
+    case 'getAttendanceHistory': {
+      const sid = payload.studentId;
+      const beforeDate = payload.beforeDate;
+      const weeks = payload.weeks || 12;
+      const history = [];
+      Object.keys(_demo.attendance)
+        .filter(k => k.slice(0,10) <= beforeDate)
+        .sort((a,b) => b.localeCompare(a))
+        .forEach(k => {
+          (_demo.attendance[k] || []).filter(r => r.studentId === sid)
+            .forEach(r => history.push({ date: k.slice(0,10), status: r.status, reason: r.reason||'' }));
+        });
+      return { success: true, data: history.slice(0, weeks) };
+    }
+
+    case 'getAttendanceStats': {
+      const stats = [];
+      const allSundayList = getSundays2026();
+      // 등록 기준 총 재적 (등록+심방필요, 장결자·유학중 제외)
+      const registered = _demo.students.filter(s => s['상태']==='등록' || s['상태']==='심방필요');
+      const totalReg = registered.length;
+      allSundayList.forEach(date => {
+        const allKeys = Object.keys(_demo.attendance).filter(k => k.startsWith(date + '_'));
+        if (!allKeys.length) return;
+        let present = 0;
+        allKeys.forEach(key => {
+          const cls = key.slice(11);
+          if (cls === '__teachers__') return;
+          (_demo.attendance[key] || []).forEach(r => {
+            if (r.status === '출석') present++;
+          });
+        });
+        stats.push({ date, total: totalReg, present, rate: totalReg ? Math.round(present/totalReg*100) : 0 });
+      });
+      // 출석 기록이 있는 날짜만 반환
+      return { success: true, data: stats.filter(s => s.present > 0 || Object.keys(_demo.attendance).some(k=>k.startsWith(s.date+'_'))) };
+    }
+
+    case 'updateNewbieAtt': {
+      const n = _demo.newbies.find(n=>n['학생ID']===payload.studentId);
+      if (!n) return {success:false, message:'학생을 찾을 수 없습니다.'};
+      n[`${payload.weekNum}주차날짜`] = payload.date;
+      n[`${payload.weekNum}주차출결`] = payload.status;
+      return {success:true, data:null, message:'저장되었습니다.'};
+    }
+
+    case 'assignToClass': {
+      // 새친구는 _newbieStudents 또는 students 어디서든 찾기
+      let s = _demo.students.find(s=>s['학생ID']===payload.studentId);
+      if (!s) s = (_demo._newbieStudents||[]).find(s=>s['학생ID']===payload.studentId);
+      if (!s) {
+        // 이름으로 fallback 검색
+        const n = _demo.newbies.find(n=>n['학생ID']===payload.studentId);
+        if (n) {
+          s = {학생ID:payload.studentId,이름:n['이름'],['학년-반']:'새친구',담임교사:'',성별:'',나이:'',생년월일:'',본인연락처:'',학부모연락처:'',상태:'새친구',주소:''};
+          _demo.students.push(s);
+        }
+      }
+      if (!s) return {success:false, message:'학생을 찾을 수 없습니다.'};
+      s['학년-반'] = payload.targetClass;
+      s['상태'] = '등록';
+      // students 배열에 없었으면 추가
+      if (!_demo.students.find(st=>st['학생ID']===payload.studentId)) _demo.students.push(s);
+      // 새친구 목록에서 완전 제거
+      _demo.newbies = _demo.newbies.filter(n => n['학생ID'] !== payload.studentId);
+      if (_demo._newbieStudents) _demo._newbieStudents = _demo._newbieStudents.filter(st=>st['학생ID']!==payload.studentId);
+      return {success:true, data:{studentName:s['이름'],targetClass:payload.targetClass}, message:`${s['이름']} 학생이 ${payload.targetClass}반에 배정되었습니다.`};
+    }
+
+    case 'addStudent': {
+      const id = _demoGenId('S');
+      const s = {
+        학생ID:id, 이름:payload.name,
+        ['학년-반']:payload.classGroup||'새친구',
+        담임교사:payload.teacher||'', 성별:payload.gender||'',
+        나이:payload.age||'', 생년월일:payload.birthdate||'',
+        본인연락처:payload.contact||'', 학부모연락처:payload.parentContact||'',
+        상태:payload.status||'새친구', 주소:payload.address||''
+      };
+      _demo.students.push(s);
+      if (s['상태']==='새친구') {
+        _demo.newbies.push({학생ID:id,이름:s['이름'],
+          '1주차날짜':'','1주차출결':'','2주차날짜':'','2주차출결':'',
+          '3주차날짜':'','3주차출결':'','4주차날짜':'','4주차출결':'',
+          반배정완료여부:'FALSE'});
+      }
+      return {success:true, data:{id}, message:'학생이 등록되었습니다.'};
+    }
+
+    case 'updateStudent': {
+      const idx = _demo.students.findIndex(s=>s['학생ID']===payload.id);
+      if (idx<0) return {success:false, message:'학생을 찾을 수 없습니다.'};
+      _demo.students[idx] = {
+        학생ID:payload.id, 이름:payload.name,
+        ['학년-반']:payload.classGroup, 담임교사:payload.teacher,
+        성별:payload.gender, 나이:payload.age, 생년월일:payload.birthdate,
+        본인연락처:payload.contact, 학부모연락처:payload.parentContact,
+        상태:payload.status, 주소:payload.address||''
+      };
+      return {success:true, data:null, message:'수정되었습니다.'};
+    }
+
+    case 'deleteStudent': {
+      const before = _demo.students.length;
+      _demo.students = _demo.students.filter(s=>s['학생ID']!==payload.id);
+      _demo.newbies  = _demo.newbies.filter(n=>n['학생ID']!==payload.id);
+      return _demo.students.length<before
+        ? {success:true, data:null, message:'삭제되었습니다.'}
+        : {success:false, message:'학생을 찾을 수 없습니다.'};
+    }
+
+    case 'addTeacher': {
+      const id = _demoGenId('T');
+      _demo.teachers.push({교사ID:id,이름:payload.name,['담당 학년-반']:payload.classGroup||'',연락처:payload.contact||'',구분:payload.role||'담임',생년월일:payload.birthdate||'',주소:payload.address||''});
+      return {success:true, data:{id}, message:'교사가 등록되었습니다.'};
+    }
+
+    case 'updateTeacher': {
+      const idx = _demo.teachers.findIndex(t=>t['교사ID']===payload.id);
+      if (idx<0) return {success:false, message:'교사를 찾을 수 없습니다.'};
+      _demo.teachers[idx] = {교사ID:payload.id,이름:payload.name,['담당 학년-반']:payload.classGroup||'',연락처:payload.contact||'',구분:payload.role||'담임',생년월일:payload.birthdate||'',주소:payload.address||''};
+      return {success:true, data:null, message:'수정되었습니다.'};
+    }
+
+    case 'deleteTeacher': {
+      _demo.teachers = _demo.teachers.filter(t=>t['교사ID']!==payload.id);
+      return {success:true, data:null, message:'삭제되었습니다.'};
+    }
+
+    // 구글 폼 연동 (데모: 수동 새로고침 시뮬레이션)
+    case 'getFormNewbies': return {success:true, data:[], message:'데모 모드'};
+    case 'syncFormResponses': return {success:true, data:{added:0}, message:'데모 모드 - 실제 GAS 연결 후 동작합니다.'};
+
+    default: return {success:false, message:'알 수 없는 액션: '+action};
+  }
+}
+
+// 2026 일요일 계산 (클라이언트측)
+// 타임존 오프셋 없이 로컬 날짜를 'YYYY-MM-DD' 형식으로 반환
+function toLocalDateStr(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+// 오늘 날짜를 로컬 기준 'YYYY-MM-DD'로 반환
+function todayLocalStr() {
+  return toLocalDateStr(new Date());
+}
+
+function getSundays2026() {
+  const sundays = [];
+  const d = new Date(2026, 0, 4);
+  while (d.getFullYear() === 2026) {
+    sundays.push(toLocalDateStr(d));
+    d.setDate(d.getDate() + 7);
+  }
+  return sundays;
+}
 
 
-</body></html>
+// ══════════════════════════════════════════
+// 로그인 / 인증
+// ══════════════════════════════════════════
+
+// 교사 이름으로 로그인
+// ── STEP 1: 이름 확인 ──────────────────────────────────────
+async function checkLoginName() {
+  if (!allTeachers.length) await loadTeachers();
+  clearLoginError();
+
+  const name = document.getElementById('loginName').value.trim();
+  if (!name) { showLoginError('이름을 입력해주세요.'); return; }
+
+  // 교역자 이름이면 → 비밀번호 단계로
+  if (isAdminName(name)) {
+    document.getElementById('loginStep1').style.display = 'none';
+    document.getElementById('loginStep2').style.display = 'block';
+    document.getElementById('loginNameDisplay').textContent = name;
+    document.getElementById('loginSubtitle').textContent = '교역자 로그인';
+    setTimeout(() => document.getElementById('loginPw').focus(), 100);
+    return;
+  }
+
+  // 일반 교사: 교사명단에서 검색
+  const teacher = allTeachers.find(t => t['이름'] === name);
+  if (!teacher) {
+    showLoginError(`"${name}" 선생님을 명단에서 찾을 수 없습니다.
+이름을 다시 확인해 주세요.`);
+    return;
+  }
+
+  currentUser = {
+    name:       teacher['이름'],
+    role:       getTeacherRole(teacher),
+    classGroup: teacher['담당 학년-반'] || '',
+    teacherObj: teacher
+  };
+  completeLogin();
+}
+
+// ── STEP 2: 교역자 비밀번호 확인 ────────────────────────────
+function doAdminLoginWithPw() {
+  clearLoginError();
+  const name = document.getElementById('loginName').value.trim();
+  const pw   = document.getElementById('loginPw').value;
+
+  if (!pw) { showLoginError('비밀번호를 입력해주세요.'); return; }
+
+  if (!verifyAdminPassword(pw)) {
+    showLoginError('비밀번호가 올바르지 않습니다.');
+    document.getElementById('loginPw').value = '';
+    document.getElementById('loginPw').focus();
+    return;
+  }
+
+  // 비밀번호 맞음 → 교역자 로그인
+  // 교사명단에 있으면 teacherObj도 연결
+  const teacher = allTeachers.find(t => t['이름'] === name);
+  currentUser = {
+    name,
+    role: 'admin',
+    classGroup: teacher ? (teacher['담당 학년-반'] || '') : '',
+    teacherObj: teacher || null
+  };
+  completeLogin();
+}
+
+function backToStep1() {
+  clearLoginError();
+  document.getElementById('loginStep2').style.display = 'none';
+  document.getElementById('loginStep1').style.display = 'block';
+  document.getElementById('loginPw').value = '';
+  document.getElementById('loginSubtitle').textContent = '이름을 입력하세요';
+  setTimeout(() => document.getElementById('loginName').focus(), 100);
+}
+
+function togglePwVisible() {
+  const inp = document.getElementById('loginPw');
+  const btn = document.getElementById('pwToggleBtn');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+// 비밀번호 변경 모달 (교역자 전용)
+function openChangePwModal() {
+  const modal = document.getElementById('changePwModal');
+  if (!modal) {
+    // 모달이 없으면 동적 생성
+    const div = document.createElement('div');
+    div.className = 'modal-backdrop';
+    div.id = 'changePwModal';
+    div.innerHTML = `
+      <div class="modal" style="max-width:340px;">
+        <div class="modal-header">
+          <div class="modal-title">🔑 비밀번호 변경</div>
+          <button class="modal-close" onclick="closeModal('changePwModal')">✕</button>
+        </div>
+        <div class="modal-body" style="display:grid;gap:12px;">
+          <div class="form-group">
+            <label class="form-label">현재 비밀번호</label>
+            <input class="form-control" id="pwCurrent" type="password" placeholder="현재 비밀번호">
+          </div>
+          <div class="form-group">
+            <label class="form-label">새 비밀번호</label>
+            <input class="form-control" id="pwNew" type="password" placeholder="새 비밀번호 (4자 이상)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">새 비밀번호 확인</label>
+            <input class="form-control" id="pwConfirm" type="password" placeholder="다시 입력">
+          </div>
+          <div id="pwChangeError" style="display:none;color:var(--danger);font-size:.8rem;padding:6px 10px;background:#FEE2E2;border-radius:6px;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" style="flex:1" onclick="closeModal('changePwModal')">취소</button>
+          <button class="btn btn-primary" style="flex:2" onclick="submitChangePw()">변경하기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(div);
+  }
+  document.getElementById('pwCurrent').value = '';
+  document.getElementById('pwNew').value = '';
+  document.getElementById('pwConfirm').value = '';
+  document.getElementById('pwChangeError').style.display = 'none';
+  openModal('changePwModal');
+}
+
+function submitChangePw() {
+  const cur     = document.getElementById('pwCurrent').value;
+  const nw      = document.getElementById('pwNew').value;
+  const confirm = document.getElementById('pwConfirm').value;
+  const errEl   = document.getElementById('pwChangeError');
+
+  const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+
+  if (!verifyAdminPassword(cur)) { showErr('현재 비밀번호가 올바르지 않습니다.'); return; }
+  if (nw.length < 4) { showErr('새 비밀번호는 4자 이상이어야 합니다.'); return; }
+  if (nw !== confirm) { showErr('새 비밀번호가 일치하지 않습니다.'); return; }
+
+  setAdminPassword(nw);
+  closeModal('changePwModal');
+  showToast('비밀번호가 변경되었습니다.', 'success');
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent = msg; el.style.display = 'block';
+}
+function clearLoginError() {
+  const el = document.getElementById('loginError');
+  if (el) el.style.display = 'none';
+}
+
+function completeLogin() {
+  // localStorage에 로그인 정보 저장 (자동 로그인용)
+  try {
+    localStorage.setItem('churchUser', JSON.stringify({
+      _version:   APP_SESSION_VERSION,
+      name:       currentUser.name,
+      role:       currentUser.role,
+      classGroup: currentUser.classGroup
+    }));
+  } catch(e) {}
+
+  // 로그인 화면 숨김
+  document.getElementById('loginScreen').style.display = 'none';
+
+  // 헤더 유저 칩 업데이트
+  updateUserChip();
+
+  // 역할별 탭 적용
+  applyRoleNav();
+
+  // 앱 초기화
+  init();
+}
+
+// 역할에 따라 하단 네비게이션 탭 표시/숨김
+function applyRoleNav() {
+  if (!currentUser) return;
+  const allowed = ROLE_TABS[currentUser.role] || ROLE_TABS.teacher;
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    const view = btn.dataset.view;
+    btn.style.display = allowed.includes(view) ? '' : 'none';
+  });
+  // 첫 번째 허용 탭을 활성화
+  const firstAllowed = allowed[0];
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const firstBtn = document.querySelector(`.nav-btn[data-view="${firstAllowed}"]`);
+  if (firstBtn) firstBtn.classList.add('active');
+  const firstView = document.getElementById(`view-${firstAllowed}`);
+  if (firstView) firstView.classList.add('active');
+}
+
+function updateUserChip() {
+  if (!currentUser) return;
+  const isAdmin    = currentUser.role === 'admin';
+  const isNewbie   = currentUser.role === 'newbie_teacher';
+  const isLeader   = currentUser.role === 'leadership';
+  document.getElementById('userAvatar').textContent    = currentUser.name.charAt(0);
+  document.getElementById('userName').textContent      = currentUser.name;
+  document.getElementById('userRoleBadge').textContent =
+    isAdmin  ? '🔑 교역자' :
+    isNewbie ? '🌱 새친구교사' :
+    isLeader ? '⭐ 리더십' :
+               `📋 ${currentUser.classGroup || '담임'}`;
+
+  // 교역자에게만 비밀번호 변경 버튼 표시
+  const pwBtn = document.getElementById('changePwBtn');
+  if (pwBtn) pwBtn.style.display = isAdmin ? 'flex' : 'none';
+}
+
+function doLogout() {
+  if (!confirm('로그아웃 하시겠습니까?')) return;
+  try { localStorage.removeItem('churchUser'); } catch(e) {}
+  // adminPw는 유지 (비밀번호 변경 내용 보존)
+  currentUser = null;
+  allStudents = []; allTeachers = []; allNewbies = [];
+  document.getElementById('loginName').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  // 탭 전부 복원 (다음 로그인 전까지 보이게)
+  document.querySelectorAll('.nav-btn').forEach(b => b.style.display = '');
+  // 출석 화면 초기화
+  document.getElementById('attList').innerHTML = '';
+  document.getElementById('attSaveArea').style.display = 'none';
+  document.getElementById('attDateBanner').style.display = 'none';
+  const lb = document.getElementById('attLockBanner');
+  if (lb) lb.remove();
+}
+
+// ══════════════════════════════════════════
+// 초기화
+// ══════════════════════════════════════════
+async function init() {
+  allSundays = getSundays2026();
+  await Promise.all([loadStudents(), loadTeachers(), loadNewbies()]);
+  setupAttendanceDateSelect();
+  renderDashboard();
+  renderRecords();
+  // 교역자인 경우 출석 통계 로드
+  loadAttendanceStats();
+}
+
+async function loadStudents() {
+  const r = await callGAS('getStudents');
+  if (r.success) allStudents = r.data;
+}
+async function loadTeachers() {
+  const r = await callGAS('getTeachers');
+  if (r.success) allTeachers = r.data;
+}
+async function loadNewbies() {
+  const r = await callGAS('getNewbies');
+  if (r.success) allNewbies = r.data;
+}
+
+
+// ══════════════════════════════════════════
+// 공지사항 & 사역일정 콜아웃
+// ══════════════════════════════════════════
+
+// 데이터 저장소 (sessionStorage 활용)
+function loadCalloutData(key) {
+  try { return JSON.parse(sessionStorage.getItem(key) || '[]'); } catch(e) { return []; }
+}
+function saveCalloutData(key, arr) {
+  try { sessionStorage.setItem(key, JSON.stringify(arr)); } catch(e) {}
+}
+
+// 콜아웃 열기/닫기 토글
+function toggleCallout(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+// 인라인 폼 열기/닫기
+function openInlineForm(formId) {
+  document.querySelectorAll('.inline-form').forEach(f => f.classList.remove('show'));
+  const form = document.getElementById(formId);
+  form.classList.add('show');
+  // 오늘 날짜 기본값
+  const dateInput = form.querySelector('input[type=date]');
+  if (dateInput && !dateInput.value) dateInput.value = todayLocalStr();
+  form.querySelector('input[type=text]').focus();
+}
+function closeInlineForm(formId) {
+  document.getElementById(formId).classList.remove('show');
+}
+
+// ─── 공지사항 ────────────────────────────
+function addNotice() {
+  if (!currentUser || currentUser.role !== 'admin') { showToast('교역자만 공지를 등록할 수 있습니다.', 'error'); return; }
+  const text = document.getElementById('noticeInput').value.trim();
+  const date = document.getElementById('noticeDate').value;
+  if (!text) { document.getElementById('noticeInput').focus(); return; }
+  const notices = loadCalloutData('notices');
+  notices.unshift({ id: Date.now(), text, date, createdAt: new Date().toISOString() });
+  saveCalloutData('notices', notices);
+  document.getElementById('noticeInput').value = '';
+  closeInlineForm('noticeForm');
+  renderNotices();
+}
+
+function deleteNotice(id) {
+  if (!currentUser || currentUser.role !== 'admin') { showToast('교역자만 삭제할 수 있습니다.', 'error'); return; }
+  const notices = loadCalloutData('notices').filter(n => n.id !== id);
+  saveCalloutData('notices', notices);
+  renderNotices();
+}
+
+function renderNotices() {
+  const notices = loadCalloutData('notices');
+  const el = document.getElementById('noticeList');
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  document.getElementById('noticeBadge').textContent = notices.length;
+  if (!notices.length) {
+    el.innerHTML = `<div style="padding:10px 0;font-size:.82rem;color:#93C5FD;text-align:center;">등록된 공지가 없습니다.</div>`;
+    return;
+  }
+  el.innerHTML = notices.map(n => `
+    <div class="notice-item">
+      <div class="notice-dot notice-dot-blue" style="margin-top:6px;"></div>
+      <div style="flex:1">
+        <div class="notice-text">${escapeHtml(n.text)}</div>
+        ${n.date ? `<div class="notice-meta">${formatDateFull(n.date)}</div>` : ''}
+      </div>
+      ${isAdmin ? `<button onclick="deleteNotice(${n.id})" style="background:none;border:none;cursor:pointer;font-size:.85rem;opacity:.4;padding:2px 4px;flex-shrink:0;" title="삭제">✕</button>` : ''}
+    </div>`).join('');
+}
+
+// ─── 사역일정 ────────────────────────────
+const SCHEDULE_CAT_COLOR = {
+  '예배':'#16A34A','행사':'#D97706','교사모임':'#7C3AED','특별활동':'#0891B2','기타':'#6B7280'
+};
+
+// 현재 캘린더가 보여주는 연/월 상태
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth(); // 0-based
+
+function addSchedule() {
+  if (!currentUser || currentUser.role !== 'admin') { showToast('교역자만 일정을 등록할 수 있습니다.', 'error'); return; }
+  const text = document.getElementById('scheduleInput').value.trim();
+  const date = document.getElementById('scheduleDate').value;
+  const cat  = document.getElementById('scheduleCategory').value;
+  if (!text) { document.getElementById('scheduleInput').focus(); return; }
+
+  // ── 지난 일정 자동 삭제: 저장 시 오늘 이전 항목 제거 ──────────────
+  purgePastSchedules();
+
+  const schedules = loadCalloutData('schedules');
+  schedules.push({ id: Date.now(), text, date, category: cat });
+  schedules.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  saveCalloutData('schedules', schedules);
+  document.getElementById('scheduleInput').value = '';
+  closeInlineForm('scheduleForm');
+
+  // 추가한 일정의 달로 캘린더 이동
+  if (date) {
+    const d = new Date(date + 'T00:00:00');
+    calYear = d.getFullYear(); calMonth = d.getMonth();
+  }
+  renderSchedules();
+}
+
+// 오늘 이전 일정 자동 삭제
+function purgePastSchedules() {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const todayStr = toLocalDateStr(today);
+  const schedules = loadCalloutData('schedules').filter(s => !s.date || s.date >= todayStr);
+  saveCalloutData('schedules', schedules);
+}
+
+function deleteSchedule(id) {
+  if (!currentUser || currentUser.role !== 'admin') { showToast('교역자만 삭제할 수 있습니다.', 'error'); return; }
+  const schedules = loadCalloutData('schedules').filter(s => s.id !== id);
+  saveCalloutData('schedules', schedules);
+  renderSchedules();
+}
+
+function changeCalMonth(delta) {
+  calMonth += delta;
+  if (calMonth > 11) { calMonth = 0;  calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  // 상세 패널 닫기
+  document.getElementById('calDetail').classList.remove('show');
+  renderSchedules();
+}
+
+function renderSchedules() {
+  // 렌더 전에 지난 일정 자동 정리
+  purgePastSchedules();
+
+  const schedules = loadCalloutData('schedules');
+  document.getElementById('scheduleBadge').textContent = schedules.length;
+
+  // ── 월 제목 ───────────────────────────────────────────
+  document.getElementById('calMonthTitle').textContent =
+    `${calYear}년 ${calMonth + 1}월`;
+
+  // ── 해당 월 일정 맵 { 'YYYY-MM-DD': [items...] } ──────
+  const monthStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}`;
+  const dayMap = {};
+  schedules.forEach(s => {
+    if (s.date && s.date.startsWith(monthStr)) {
+      if (!dayMap[s.date]) dayMap[s.date] = [];
+      dayMap[s.date].push(s);
+    }
+  });
+
+  // ── 그리드 생성 ────────────────────────────────────────
+  const firstDay = new Date(calYear, calMonth, 1).getDay(); // 0=일
+  const lastDate = new Date(calYear, calMonth + 1, 0).getDate();
+  const todayStr = todayLocalStr();
+
+  let cells = '';
+  // 앞 빈칸
+  for (let i = 0; i < firstDay; i++) {
+    cells += `<div class="cal-day other-month"><div class="cal-day-num"></div></div>`;
+  }
+  // 날짜 셀
+  for (let d = 1; d <= lastDate; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dateStr === todayStr;
+    const events  = dayMap[dateStr] || [];
+    const dots    = events.slice(0,4).map(e =>
+      `<div class="cal-dot" style="background:${SCHEDULE_CAT_COLOR[e.category]||'#6B7280'}"></div>`
+    ).join('');
+    cells += `
+      <div class="cal-day${isToday?' today':''}${events.length?' has-event':''}"
+           onclick="${events.length?`showCalDetail('${dateStr}')`:''}"
+           title="${events.map(e=>e.text).join(' / ')||''}">
+        <div class="cal-day-num">${d}</div>
+        ${dots?`<div class="cal-dots">${dots}</div>`:''}
+      </div>`;
+  }
+  // 뒤 빈칸 (6행 고정)
+  const total = firstDay + lastDate;
+  const remainder = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 0; i < remainder; i++) {
+    cells += `<div class="cal-day other-month"><div class="cal-day-num"></div></div>`;
+  }
+  document.getElementById('calDayGrid').innerHTML = cells;
+}
+
+// 날짜 클릭 시 일정 상세 표시
+function showCalDetail(dateStr) {
+  const schedules = loadCalloutData('schedules').filter(s => s.date === dateStr);
+  const detail   = document.getElementById('calDetail');
+  const title    = document.getElementById('calDetailTitle');
+  const list     = document.getElementById('calDetailList');
+
+  // 같은 날 다시 클릭하면 닫기
+  if (detail.classList.contains('show') && title.dataset.date === dateStr) {
+    detail.classList.remove('show'); return;
+  }
+  title.dataset.date = dateStr;
+  title.textContent  = formatDateFull(dateStr);
+
+  list.innerHTML = schedules.map(s => {
+    const color = SCHEDULE_CAT_COLOR[s.category] || '#6B7280';
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    return `
+    <div class="notice-item">
+      <div class="notice-dot" style="background:${color};margin-top:6px;"></div>
+      <div style="flex:1">
+        <div class="notice-text">${escapeHtml(s.text)}</div>
+        <div class="notice-meta" style="display:flex;gap:6px;align-items:center;">
+          <span style="background:${color}22;color:${color};padding:1px 7px;border-radius:50px;font-size:.68rem;font-weight:700;">${s.category||''}</span>
+        </div>
+      </div>
+      ${isAdmin ? `<button onclick="deleteSchedule(${s.id})" style="background:none;border:none;cursor:pointer;font-size:.85rem;opacity:.4;padding:2px 4px;" title="삭제">✕</button>` : ''}
+    </div>`;
+  }).join('');
+
+  detail.classList.add('show');
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 상태 → 배지 클래스
+function statusBadgeClass(status) {
+  if (status === '등록')     return 'badge-green';
+  if (status === '새친구')   return 'badge-amber';
+  if (status === '심방필요') return 'badge-red';
+  if (status === '장결자')   return 'badge-red';
+  if (status === '유학중')   return 'badge-blue';
+  return 'badge-gray';
+}
+
+
+// ══════════════════════════════════════════
+// 설교 · 소그룹 콜아웃
+// ══════════════════════════════════════════
+
+// 현재 보고 있는 주일 인덱스 (allSundays 배열 기준)
+let sermonWeekIdx = 0;
+
+// 설교 데이터 키 생성 (날짜별로 저장)
+function sermonKey(dateStr) { return 'sermon_' + dateStr; }
+
+// "이번 주 말씀" 기준 주일 인덱스
+// - 오늘이 주일이면 오늘
+// - 오늘이 주일이 아니면 → 이번 주 주일 (월~토: 다가오는 주일, 주일이 지나면 다음 주일)
+function findNearestSundayIdx() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = toLocalDateStr(today);
+
+  // 오늘 이후(오늘 포함) 첫 번째 주일 찾기
+  for (let i = 0; i < allSundays.length; i++) {
+    if (allSundays[i] >= todayStr) return i;
+  }
+  // 2026년을 넘어갔을 경우 마지막 주일 반환
+  return allSundays.length - 1;
+}
+
+function changeSermonWeek(delta) {
+  const next = sermonWeekIdx + delta;
+  if (next < 0 || next >= allSundays.length) return;
+  sermonWeekIdx = next;
+  renderSermon();
+}
+
+function renderSermon() {
+  if (!allSundays.length) return;
+  const dateStr = allSundays[sermonWeekIdx];
+  const data = loadSermonData(dateStr);
+
+  // 주일 날짜 표시 + 이번 주 / 지난 주 / 다음 주 라벨
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = toLocalDateStr(today);
+  const nearestIdx = findNearestSundayIdx();
+  let weekLabel = '';
+  if (sermonWeekIdx === nearestIdx) {
+    weekLabel = ' ✦ 이번 주';
+  } else if (sermonWeekIdx < nearestIdx) {
+    weekLabel = ' · 지난 주일';
+  } else {
+    weekLabel = ' · 다음 주일';
+  }
+  document.getElementById('sermonWeekTitle').textContent = formatDateFull(dateStr) + weekLabel;
+
+  // 필드 렌더
+  const fields = [
+    { id: 'sfPassage', key: 'passage' },
+    { id: 'sfTitle',   key: 'title'   },
+    { id: 'sfGroup',   key: 'group'   },
+  ];
+  fields.forEach(({ id, key }) => {
+    const el = document.getElementById(id);
+    const val = data[key] || '';
+    if (val) {
+      el.textContent = val;
+      el.classList.remove('empty-val');
+    } else {
+      el.textContent = '등록된 내용이 없습니다';
+      el.classList.add('empty-val');
+    }
+  });
+
+  // 편집 폼 닫기
+  document.getElementById('sermonEditForm').classList.remove('show');
+}
+
+function toggleSermonEdit() {
+  if (!currentUser || currentUser.role !== 'admin') { showToast('교역자만 편집할 수 있습니다.', 'error'); return; }
+  const form = document.getElementById('sermonEditForm');
+  const isOpen = form.classList.contains('show');
+  if (isOpen) {
+    form.classList.remove('show');
+    return;
+  }
+  // 현재 값을 폼에 채워넣기
+  const dateStr = allSundays[sermonWeekIdx];
+  const data = loadSermonData(dateStr);
+  document.getElementById('sePassage').value = data.passage || '';
+  document.getElementById('seTitle').value   = data.title   || '';
+  document.getElementById('seGroup').value   = data.group   || '';
+  form.classList.add('show');
+  document.getElementById('seTitle').focus();
+}
+
+function saveSermon() {
+  if (!currentUser || currentUser.role !== 'admin') { showToast('교역자만 저장할 수 있습니다.', 'error'); return; }
+  const dateStr = allSundays[sermonWeekIdx];
+  const data = {
+    passage:  document.getElementById('sePassage').value.trim(),
+    title:    document.getElementById('seTitle').value.trim(),
+    group:    document.getElementById('seGroup').value.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  // localStorage에 주일별로 영구 저장 (탭 닫아도 유지)
+  try { localStorage.setItem('sermon_' + dateStr, JSON.stringify(data)); } catch(e) {}
+  renderSermon();
+  showToast('저장되었습니다.', 'success');
+}
+
+// loadCalloutData 가 배열만 처리하므로 설교용 override
+function loadSermonData(dateStr) {
+  try { return JSON.parse(localStorage.getItem('sermon_' + dateStr) || 'null') || {}; }
+  catch(e) { return {}; }
+}
+
+// ══════════════════════════════════════════
+// 대시보드
+// ══════════════════════════════════════════
+function renderDashboard() {
+  const isAdmin   = currentUser && currentUser.role === 'admin';
+  const dashboard = document.getElementById('view-dashboard');
+
+  if (isAdmin) {
+    // ── 교역자(관리자) 홈: 기존 풀 대시보드 ───────────────────────
+    dashboard.classList.remove('teacher-home');
+
+    const active  = allStudents.filter(s => s['상태'] === '등록' || s['상태'] === '심방필요');
+    const newbie  = allNewbies.filter(n => n['반배정완료여부'] !== 'TRUE');
+    const absent  = allStudents.filter(s => s['상태'] === '장결자' || s['상태'] === '유학중');
+    document.getElementById('statTotal').textContent  = allStudents.length;
+    document.getElementById('statActive').textContent = active.length;
+    document.getElementById('statNewbie').textContent = newbie.length;
+    document.getElementById('statTeacher').textContent= allTeachers.length;
+    const absentStatEl = document.getElementById('statAbsent');
+    if (absentStatEl) absentStatEl.textContent = absent.length;
+
+    // 공지·일정 추가 버튼 노출 (교역자만)
+    document.querySelectorAll('.callout-add-btn').forEach(b => b.style.removeProperty('display'));
+
+    // 설교 편집 버튼 노출, 설교 콜아웃 표시
+    document.getElementById('calloutSermon').style.display = 'block';
+    document.getElementById('sermonEditBtn').style.display = 'inline-flex';
+
+    // 생일 필터 기본값: 이달 자동 선택
+    const thisMonth = new Date().getMonth() + 1;
+    const activeBtn = document.querySelector('.month-btn.active');
+    if (activeBtn && activeBtn.dataset.month === '0') {
+      document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
+      const thisBtn = document.querySelector(`.month-btn[data-month="${thisMonth}"]`);
+      if (thisBtn) { thisBtn.classList.add('active'); filterMonth = thisMonth; }
+    }
+    renderStudentList();
+
+  } else {
+    // ── 교사 홈 (담임·부담임·새친구): 공지·말씀·사역일정 읽기 전용 ─
+    dashboard.classList.add('teacher-home');
+
+    // 추가·편집 버튼 강제 숨김 (CSS teacher-home 클래스 + 인라인 보강)
+    document.querySelectorAll('.callout-add-btn').forEach(b => b.style.display = 'none');
+    document.getElementById('sermonEditBtn').style.display = 'none';
+
+    // 설교 콜아웃 표시 (읽기 전용)
+    document.getElementById('calloutSermon').style.display = 'block';
+
+    // 이번 주 설교 자동 세팅
+    sermonWeekIdx = findNearestSundayIdx();
+  }
+
+  // 공통: 공지·사역일정은 항상 렌더
+  renderNotices();
+  renderSchedules();
+  renderSermon();
+}
+
+function renderStudentList() {
+  const el = document.getElementById('studentList');
+  const m = filterMonth > 0 ? filterMonth : new Date().getMonth() + 1;
+
+  function getBdMonth(bd) {
+    const s = String(bd || '');
+    return s.length >= 4 ? parseInt(s.slice(2,4)) : 0;
+  }
+
+  const birthdayStudents = allStudents.filter(s => getBdMonth(s['생년월일']) === m);
+
+  if (!birthdayStudents.length) {
+    el.innerHTML = `<div class="empty" style="padding:16px 0;"><div class="empty-icon">🎂</div><div style="font-size:.82rem;color:var(--gray-400);">${m}월 생일인 학생이 없습니다.</div></div>`;
+    return;
+  }
+
+  // 학년 그룹핑
+  const gradeGroups = {};
+  birthdayStudents.forEach(s => {
+    const cls = s['학년-반'] || '기타';
+    const gradeKey = cls.replace(/-\d반$/, '').replace(/-\d+반$/, '') || '기타';
+    if (!gradeGroups[gradeKey]) gradeGroups[gradeKey] = [];
+    gradeGroups[gradeKey].push(s['이름']);
+  });
+
+  const gradeOrder = ['초6','중1','중2','중3','고1','고2','고3'];
+  const sortedGrades = Object.keys(gradeGroups).sort((a,b) => {
+    const ai = gradeOrder.indexOf(a); const bi = gradeOrder.indexOf(b);
+    return (ai<0?99:ai)-(bi<0?99:bi);
+  });
+
+  // 콜아웃 스타일로 학년별 렌더링
+  el.innerHTML = sortedGrades.map(grade => {
+    const names = gradeGroups[grade];
+    const rows = [];
+    for (let i = 0; i < names.length; i += 5) rows.push(names.slice(i, i+5));
+    return `
+      <div style="background:var(--primary-lt);border-left:3px solid var(--primary);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
+        <div style="font-size:.72rem;font-weight:800;color:var(--primary);margin-bottom:7px;">🎂 ${grade}</div>
+        ${rows.map(row => `
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;">
+            ${row.map(name => `<span style="font-size:.8rem;font-weight:600;background:#fff;color:var(--primary);padding:3px 9px;border-radius:50px;border:1px solid rgba(59,130,246,.2);">${name}</span>`).join('')}
+          </div>`).join('')}
+      </div>`;
+  }).join('');
+}
+
+function getBirthdayBadge(bd) {
+  if (!bd || String(bd).length < 4) return '';
+  const today = new Date();
+  const mo = parseInt(String(bd).slice(2,4));
+  if (mo === today.getMonth()+1) return `<span class="badge badge-red">🎂 이달 생일</span>`;
+  return '';
+}
+
+function renderTeacherList() {
+  const q = searchQuery.toLowerCase();
+  const filtered = allTeachers.filter(t => !q || t['이름'].includes(q));
+  const el = document.getElementById('teacherList');
+  if (!filtered.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">👩‍🏫</div>교사가 없습니다.</div>`; return; }
+  el.innerHTML = filtered.map(t => `
+    <div class="person-card" onclick="showTeacherDetail('${t['교사ID']}')">
+      <div class="avatar teacher">${t['이름'].charAt(0)}</div>
+      <div class="person-info" style="flex:1">
+        <div class="name">${t['이름']} <small style="color:var(--gray-400);font-size:.75rem;">${t['교사ID']}</small></div>
+        <div class="sub">${t['담당 학년-반']||'미배정'} · ${t['연락처']||'-'}</div>
+        <div class="tags">
+          <span class="badge badge-amber">${t['구분']}</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════
+// 출석 체크
+// ══════════════════════════════════════════
+function setupAttendanceDateSelect() {
+  const dateEl = document.getElementById('attDate');
+  dateEl.innerHTML = '<option value="">날짜 선택</option>' +
+    allSundays.map(d => `<option value="${d}">${formatDate(d)}</option>`).join('');
+
+  // ── 반 정렬: 초6 > 중1 > 중2 > 중3 > 고1 > 고2 > 고3 순 ────────
+  function classOrder(c) {
+    if (c.startsWith('초6')) return '1_' + c;
+    if (c.startsWith('중1')) return '2_' + c;
+    if (c.startsWith('중2')) return '3_' + c;
+    if (c.startsWith('중3')) return '4_' + c;
+    if (c.startsWith('고1')) return '5_' + c;
+    if (c.startsWith('고2')) return '6_' + c;
+    if (c.startsWith('고3')) return '7_' + c;
+    return '9_' + c;
+  }
+  const validSt = ['등록','심방필요','장결자'];
+  const allClasses = [...new Set(allStudents.filter(s=>validSt.includes(s['상태'])).map(s=>s['학년-반']))]
+    .sort((a,b)=>classOrder(a).localeCompare(classOrder(b)));
+
+  const isAdmin      = currentUser && currentUser.role === 'admin';
+  const isLeadership = currentUser && currentUser.role === 'leadership';
+
+  const classEl = document.getElementById('attClass');
+
+  if (isLeadership) {
+    classEl.innerHTML = `<option value="__teachers__">👥 교사 출석체크</option>`;
+    classEl.value = '__teachers__';
+    classEl.setAttribute('disabled', 'disabled');
+    renderAttLockBanner('교사 전체');
+    autoSelectNearestSunday();
+    loadAttendance();
+  } else if (isAdmin) {
+    // 교사 출석체크가 맨 위, 그 다음 정렬된 반 목록
+    classEl.innerHTML =
+      '<option value="">반 선택 (전체)</option>' +
+      '<option value="__teachers__">👥 교사 출석체크</option>' +
+      allClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+    classEl.removeAttribute('disabled');
+  } else {
+    const myClass = currentUser ? currentUser.classGroup : '';
+    const myClasses = allClasses.filter(c => c === myClass);
+    if (!myClasses.length) {
+      classEl.innerHTML = `<option value="${myClass}">${myClass || '담당반 없음'}</option>`;
+    } else {
+      classEl.innerHTML = myClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+    }
+    classEl.value = myClass;
+    classEl.setAttribute('disabled', 'disabled');
+    renderAttLockBanner(myClass);
+  }
+
+  // 이벤트 리스너 (중복 방지를 위해 새 엘리먼트로 교체)
+  const newClassEl = classEl.cloneNode(true);
+  classEl.parentNode.replaceChild(newClassEl, classEl);
+
+  newClassEl.addEventListener('change', () => {
+    if (newClassEl.value) autoSelectNearestSunday();
+    loadAttendance();
+  });
+  dateEl.addEventListener('change', () => {
+    if (dateEl.value) showDateBanner(dateEl.value);
+    loadAttendance();
+  });
+
+  // 교사인 경우 담당 반 자동 로드
+  if (!isAdmin && currentUser && currentUser.classGroup) {
+    autoSelectNearestSunday();
+    loadAttendance();
+  }
+}
+
+function renderAttLockBanner(myClass) {
+  // 기존 배너가 있으면 제거
+  const existing = document.getElementById('attLockBanner');
+  if (existing) existing.remove();
+
+  if (!myClass) return;
+  const attSection = document.getElementById('view-attendance');
+  const lockBanner = document.createElement('div');
+  lockBanner.id = 'attLockBanner';
+  lockBanner.className = 'locked-banner';
+  lockBanner.innerHTML = `
+    <span style="font-size:1.1rem;">🔒</span>
+    <span>담당 반 <strong>${myClass}</strong>의 출석부만 열람·편집할 수 있습니다.</span>`;
+  // att-header 앞에 삽입
+  const attHeader = attSection.querySelector('.att-header');
+  attSection.insertBefore(lockBanner, attHeader);
+}
+
+// 오늘 날짜에서 가장 가까운 일요일(과거 우선) 자동 선택
+function autoSelectNearestSunday() {
+  const dateEl = document.getElementById('attDate');
+  const today  = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 오늘 이하인 일요일 중 가장 마지막(최근) 것 선택, 없으면 첫 번째 미래 일요일
+  let best = allSundays[0];
+  for (const s of allSundays) {
+    const d = new Date(s);
+    if (d <= today) best = s;
+    else break;
+  }
+
+  dateEl.value = best;
+  showDateBanner(best);
+}
+
+function showDateBanner(dateStr) {
+  const banner = document.getElementById('attDateBanner');
+  const label  = document.getElementById('attDateLabel');
+  if (!banner || !label) return;
+  banner.style.display = 'flex';
+  label.textContent = formatDateFull(dateStr);
+}
+
+function formatDateFull(d) {
+  if (!d) return '';
+  // 'YYYY-MM-DD' 파싱: UTC 오프셋 없이 로컬 날짜로 분해
+  const [y, m, day] = d.split('-').map(Number);
+  const dt = new Date(y, m - 1, day);          // 로컬 자정 → 요일 정확
+  const days = ['일','월','화','수','목','금','토'];
+  return y + '년 ' + m + '월 ' + day + '일 (' + days[dt.getDay()] + ')';
+}
+
+async function loadAttendance() {
+  const cls  = document.getElementById('attClass').value;
+  const date = document.getElementById('attDate').value;
+  if (!cls || !date) { document.getElementById('attList').innerHTML=''; return; }
+
+  document.getElementById('attList').innerHTML = `<div class="loading"><div class="spinner"></div><span>불러오는 중...</span></div>`;
+
+  // 리더십 모드: 교사 목록으로 출석체크
+  if (cls === '__teachers__') {
+    currentAttRecords = {};
+    allTeachers.forEach(t => {
+      currentAttRecords[t['교사ID']] = {
+        studentId: t['교사ID'],
+        name: t['이름'],
+        classGroup: '__teachers__',
+        status: '미체크',
+        reason: '',
+        _isTeacher: true,
+        _role: t['구분'],
+        _class: t['담당 학년-반'] || '',
+      };
+    });
+    renderAttList();
+    return;
+  }
+
+  const r = await callGAS('getAttendance', {classGroup:cls, date});
+  if (!r.success) { showToast(r.message,'error'); return; }
+
+  currentAttRecords = {};
+  r.data.students.forEach(s => currentAttRecords[s.studentId] = { ...s });
+  renderAttList();
+}
+
+function renderAttList() {
+  const el = document.getElementById('attList');
+  const records = Object.values(currentAttRecords);
+  if (!records.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>명단이 없습니다.</div>`; return; }
+
+  document.getElementById('attSaveArea').style.display = 'block';
+  el.innerHTML = records.map(r => {
+    const subLabel = r._isTeacher
+      ? `<span style="font-size:.72rem;color:var(--gray-500);">${r._role}${r._class ? ' · ' + r._class : ''}</span>`
+      : '';
+    return `
+    <div class="att-row ${r.status==='결석'?'absent':''}" id="att-${r.studentId}">
+      <div class="att-name">${r.name} ${subLabel}</div>
+      <div class="att-toggle">
+        <button class="att-on ${r.status==='출석'?'active':''}" onclick="setAtt('${r.studentId}','출석')">출석</button>
+        <button class="att-off ${r.status==='결석'?'active':''}" onclick="setAtt('${r.studentId}','결석')">결석</button>
+      </div>
+    </div>
+    ${r.status==='결석'?`
+    <div class="absence-reason" id="reason-${r.studentId}">
+      <select class="form-control" id="sel-${r.studentId}" onchange="setReason('${r.studentId}',this.value)" style="font-size:.82rem;">
+        <option value="">결석 사유 선택</option>
+        <option ${r.reason==='병가'?'selected':''}>병가</option>
+        <option ${r.reason==='개인사정'?'selected':''}>개인사정</option>
+        <option ${r.reason==='가족일정'?'selected':''}>가족일정</option>
+        <option ${r.reason==='유학'?'selected':''}>유학</option>
+        <option ${r.reason==='기타'?'selected':''}>기타</option>
+      </select>
+    </div>`:''}
+  `}).join('');
+}
+
+function setAtt(id, status) {
+  currentAttRecords[id].status = status;
+  if (status === '출석') currentAttRecords[id].reason = '';
+  renderAttList();
+}
+function setReason(id, reason) {
+  currentAttRecords[id].reason = reason;
+}
+
+async function saveAttendance() {
+  const cls  = document.getElementById('attClass').value;
+  const date = document.getElementById('attDate').value;
+  if (!cls || !date) return;
+
+  const records = Object.values(currentAttRecords).map(r => ({
+    studentId: r.studentId, name: r.name, status: r.status, reason: r.reason||''
+  }));
+
+  const r = await callGAS('saveAttendance', {classGroup:cls, date, records});
+  if (!r.success) { showToast(r.message || '저장 오류', 'error'); return; }
+
+  // 교사 출석체크는 상태 자동변경 없음
+  if (cls === '__teachers__') {
+    showToast('교사 출석이 저장되었습니다.', 'success');
+    await loadStudents();
+    renderDashboard();
+    await loadAttendanceStats();
+    return;
+  }
+
+  // ── 자동 상태 판정 ──────────────────────────────────────
+  const statusChanges = [];
+
+  for (const rec of records) {
+    // 1순위: 유학 사유 → 즉시 유학중 (다른 판정보다 우선)
+    if (rec.reason === '유학' || rec.reason === '해외유학') {
+      const changed = await applyStatusChange(rec.studentId, '유학중');
+      if (changed) statusChanges.push({ name: rec.name, newStatus: '유학중' });
+      continue;
+    }
+
+    // 유학중이었다가 출석하면 등록으로 복구
+    const stu = allStudents.find(s=>s['학생ID']===rec.studentId);
+    if (stu && stu['상태']==='유학중' && rec.status==='출석') {
+      const changed = await applyStatusChange(rec.studentId, '등록');
+      if (changed) statusChanges.push({ name: rec.name, newStatus: '등록 (복구)' });
+      continue;
+    }
+    if (stu && stu['상태']==='유학중') continue; // 유학중이면 다른 판정 건너뜀
+
+    const history = await getConsecutiveAbsentCount(rec.studentId, date);
+
+    if (history >= 12) {
+      const changed = await applyStatusChange(rec.studentId, '장결자');
+      if (changed) statusChanges.push({ name: rec.name, newStatus: '장결자' });
+    } else if (history >= 2) {
+      // 이미 장결자면 심방필요로 낮추지 않음
+      if (stu && stu['상태'] !== '장결자') {
+        const changed = await applyStatusChange(rec.studentId, '심방필요');
+        if (changed) { statusChanges.push({ name: rec.name, newStatus: '심방필요' }); showVisitAlert(rec.name); }
+      }
+    } else {
+      // 출석 복구
+      if (stu && (stu['상태']==='심방필요' || stu['상태']==='장결자') && rec.status==='출석') {
+        const changed = await applyStatusChange(rec.studentId, '등록');
+        if (changed) statusChanges.push({ name: rec.name, newStatus: '등록 (복구)' });
+      }
+    }
+  }
+
+  // ── 새친구 4주 완료 알림 ────────────────────────────────
+  checkNewbieCompletion();
+
+  // ── 결과 알림 ────────────────────────────────────────
+  if (statusChanges.length > 0) {
+    const msg = statusChanges.map(c=>`${c.name} → ${c.newStatus}`).join(', ');
+    showToast(`저장 완료 · 상태 변경: ${msg}`, 'success');
+  } else {
+    showToast('출석이 저장되었습니다.', 'success');
+  }
+
+  await loadStudents();
+  renderDashboard();
+  await loadAttendanceStats();
+}
+
+// ── 연속 결석/미체크 횟수 (이번 기록 포함) ─────────────────
+async function getConsecutiveAbsentCount(studentId, currentDate) {
+  const r = await callGAS('getAttendanceHistory', { studentId, beforeDate: currentDate, weeks: 12 });
+  if (!r.success || !r.data) return 0;
+  // 이번 기록을 맨 앞에 추가 (아직 저장된 직후이므로 포함)
+  const current = currentAttRecords[studentId];
+  const fullHistory = current
+    ? [{ date: currentDate, status: current.status || '미체크', reason: current.reason||'' }, ...r.data]
+    : r.data;
+
+  let count = 0;
+  for (const entry of fullHistory) {
+    const isAbsent = entry.status === '결석' || entry.status === '미체크' || !entry.status;
+    if (isAbsent) count++;
+    else break;
+  }
+  return count;
+}
+
+// ── 출석 통계 로드 및 렌더 ────────────────────────────────
+async function loadAttendanceStats() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const r = await callGAS('getAttendanceStats', {});
+  if (!r.success) return;
+  renderAttendanceStats(r.data);
+}
+
+function renderAttendanceStats(stats) {
+  const panel = document.getElementById('attStatsPanel');
+  const list  = document.getElementById('attStatsList');
+  if (!panel || !list) return;
+
+  if (!stats || !stats.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block';
+
+  list.innerHTML = `
+    <table class="att-stats-table">
+      <thead>
+        <tr>
+          <th>날짜</th>
+          <th>재적</th>
+          <th>출석</th>
+          <th>출석률</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${stats.slice().reverse().slice(0,10).map(s => {
+          const rateClass = s.rate >= 80 ? '' : s.rate >= 60 ? 'mid' : 'low';
+          return `<tr>
+            <td>${formatDateShort(s.date)}</td>
+            <td>${s.total}</td>
+            <td>${s.present}</td>
+            <td class="att-stats-rate ${rateClass}">${s.rate}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+function formatDateShort(d) {
+  if (!d) return '';
+  const [y,m,day] = d.split('-');
+  return `${m}/${day}`;
+}
+
+// ── 새친구 4주 출석 완료 알림 ─────────────────────────────
+function checkNewbieCompletion() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const completed = allNewbies.filter(n => {
+    const done = [1,2,3,4].every(w => n[`${w}주차출결`] === '출석');
+    return done && n['반배정완료여부'] !== 'TRUE';
+  });
+  completed.forEach(n => {
+    showNewbieAlert(n['이름']);
+  });
+}
+
+function showNewbieAlert(name) {
+  const existing = document.getElementById(`newbieAlert_${name}`);
+  if (existing) return;
+  const banner = document.createElement('div');
+  banner.id = `newbieAlert_${name}`;
+  banner.style.cssText = `
+    position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(135deg,#065F46,#047857);
+    color:#fff;padding:13px 20px;border-radius:var(--radius);
+    font-size:.88rem;font-weight:700;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+    z-index:9999;cursor:pointer;
+    animation:slideUp .3s ease;max-width:90vw;text-align:center;
+  `;
+  banner.innerHTML = `🎉 ${name} 학생 반배정 요망`;
+  banner.onclick = () => banner.remove();
+  document.body.appendChild(banner);
+  setTimeout(() => banner && banner.remove(), 8000);
+}
+
+// 교역자 심방필요 팝업 알림
+const _visitAlertShown = new Set();
+function showVisitAlert(name) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  if (_visitAlertShown.has(name)) return;
+  _visitAlertShown.add(name);
+
+  const id = `visitAlert_${name}`;
+  const existing = document.getElementById(id);
+  if (existing) return;
+
+  // 스택형 위치 계산 (여러 개 겹치지 않게)
+  const bannerCount = document.querySelectorAll('[id^="visitAlert_"]').length;
+  const bottomOffset = 80 + bannerCount * 68;
+
+  const banner = document.createElement('div');
+  banner.id = id;
+  banner.style.cssText = `
+    position:fixed;bottom:${bottomOffset}px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(135deg,#7C2D12,#B45309);
+    color:#fff;padding:12px 20px;border-radius:var(--radius);
+    font-size:.85rem;font-weight:700;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+    z-index:9998;cursor:pointer;
+    animation:slideUp .3s ease;max-width:90vw;text-align:center;
+    display:flex;align-items:center;gap:8px;
+  `;
+  banner.innerHTML = `⚠️ ${name} 학생 심방 필요`;
+  banner.onclick = () => { banner.remove(); _visitAlertShown.delete(name); };
+  document.body.appendChild(banner);
+  setTimeout(() => { banner && banner.remove(); _visitAlertShown.delete(name); }, 10000);
+}
+
+// 학생 상태 변경 (변경 발생 여부 반환)
+async function applyStatusChange(studentId, newStatus) {
+  const stu = allStudents.find(s => s['학생ID'] === studentId);
+  if (!stu) return false;
+  if (stu['상태'] === newStatus) return false; // 이미 같은 상태
+
+  const payload = {
+    id: studentId,
+    name: stu['이름'],
+    classGroup: stu['학년-반'],
+    teacher: stu['담임교사'] || '',
+    gender: stu['성별'] || '',
+    age: stu['나이'] || '',
+    birthdate: stu['생년월일'] || '',
+    contact: stu['본인연락처'] || '',
+    parentContact: stu['학부모연락처'] || '',
+    address: stu['주소'] || '',
+    status: newStatus,
+  };
+
+  const r = await callGAS('updateStudent', payload);
+  if (r.success) {
+    stu['상태'] = newStatus; // 로컬 상태도 즉시 반영
+    return true;
+  }
+  return false;
+}
+
+// ══════════════════════════════════════════
+// 새친구 관리
+// ══════════════════════════════════════════
+// ══════════════════════════════════════════
+// 구글 폼 연동
+// ══════════════════════════════════════════
+function saveFormUrl() {
+  const url = document.getElementById('formUrlInput').value.trim();
+  if (!url) return;
+  try { localStorage.setItem('formUrl', url); } catch(e) {}
+  document.getElementById('formUrlSaved').style.display = 'block';
+  setTimeout(()=>document.getElementById('formUrlSaved').style.display='none', 2000);
+}
+
+async function syncFormNewbies() {
+  const btn = document.getElementById('syncBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 새로고침 중...';
+
+  try {
+    const r = await callGAS('syncFormResponses', {});
+    if (r.success) {
+      const added = r.data && r.data.added ? r.data.added : 0;
+      await loadStudents();
+      await loadNewbies();
+      renderNewbieList();
+      showToast(added > 0 ? `${added}명의 새친구가 추가되었습니다.` : '새로운 응답이 없습니다.', added > 0 ? 'success' : '');
+    } else {
+      showToast(r.message || '동기화 실패', 'error');
+    }
+  } catch(e) {
+    showToast('동기화 오류: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 새친구 새로고침';
+  }
+}
+
+// ── 정렬 드롭다운 ──────────────────────────
+const SORT_LABELS = {
+  name_asc:  '이름 ↑ 오름차순',
+  name_desc: '이름 ↓ 내림차순',
+  age_asc:   '나이 ↑ 어린 순',
+  age_desc:  '나이 ↓ 많은 순',
+  weeks_asc: '출석 ↑ 적은 순',
+  weeks_desc:'출석 ↓ 많은 순',
+};
+
+function toggleSortMenu() {
+  const btn  = document.getElementById('sortDropdownBtn');
+  const menu = document.getElementById('sortMenu');
+  const isOpen = menu.classList.contains('open');
+  if (isOpen) {
+    menu.classList.remove('open');
+    btn.classList.remove('open');
+  } else {
+    menu.classList.add('open');
+    btn.classList.add('open');
+  }
+}
+
+function closeSortMenu() {
+  document.getElementById('sortMenu').classList.remove('open');
+  document.getElementById('sortDropdownBtn').classList.remove('open');
+}
+
+function setNewbieSort(key) {
+  newbieSortKey = key;
+
+  // 라벨 업데이트
+  document.getElementById('sortLabel').textContent = SORT_LABELS[key] || key;
+
+  // 메뉴 아이템 active 처리
+  document.querySelectorAll('.sort-menu-item').forEach(item => {
+    if (item.dataset.sort === key) {
+      item.classList.add('active');
+    } else {
+      item.classList.remove('active');
+    }
+  });
+
+  // 드롭다운 닫기
+  closeSortMenu();
+
+  // 목록 다시 렌더
+  renderNewbieList();
+}
+
+// 드롭다운 외부 클릭 시 닫기
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('sortDropdownWrap');
+  if (wrap && !wrap.contains(e.target)) closeSortMenu();
+});
+// MM.DD 텍스트 → 저장용 문자열 (그대로 사용)
+function parseMmDd(val) {
+  // 사용자가 입력한 MM.DD 형식 그대로 반환 (빈값이면 '')
+  return (val || '').trim();
+}
+
+// 저장된 날짜 값 → MM.DD 표시용 (YYYY-MM-DD 형식이면 변환, 아니면 그대로)
+function toMmDd(val) {
+  if (!val) return '';
+  const m = String(val).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return m[2] + '.' + m[3];
+  return val;
+}
+
+function renderNewbieList() {
+  const el = document.getElementById('newbieList');
+  let active = allNewbies.filter(n => n['반배정완료여부'] !== 'TRUE' && n['반배정완료여부'] !== true);
+
+  // ── 정렬 ──────────────────────────────────
+  active = active.slice().sort((a, b) => {
+    const [field, dir] = newbieSortKey.split('_'); // e.g. 'name', 'asc'
+    const asc = dir === 'asc';
+
+    if (field === 'name') {
+      const cmp = (a['이름'] || '').localeCompare(b['이름'] || '', 'ko');
+      return asc ? cmp : -cmp;
+    } else if (field === 'weeks') {
+      const wA = [1,2,3,4].filter(w => a[`${w}주차출결`] === '출석').length;
+      const wB = [1,2,3,4].filter(w => b[`${w}주차출결`] === '출석').length;
+      return asc ? wA - wB : wB - wA;
+    } else if (field === 'age') {
+      const stuA = allStudents.find(s => s['학생ID'] === a['학생ID']);
+      const stuB = allStudents.find(s => s['학생ID'] === b['학생ID']);
+      const ageA = stuA ? (parseInt(stuA['나이']) || 0) : 0;
+      const ageB = stuB ? (parseInt(stuB['나이']) || 0) : 0;
+      return asc ? ageA - ageB : ageB - ageA;
+    }
+    return 0;
+  });
+
+  if (!active.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🌱</div>새친구가 없습니다.</div>`;
+    return;
+  }
+
+  el.innerHTML = active.map(n => {
+    // 학생 정보 (학년-반, 성별) 가져오기
+    const stu = allStudents.find(s => s['학생ID'] === n['학생ID']);
+    const grade = stu ? (stu['학년-반'] || '') : '';
+    const gender = stu ? (stu['성별'] || '') : '';
+    const age = stu ? `만${stu['나이']}세` : '';
+
+    const weeks = [1,2,3,4].map(w => ({
+      date: n[`${w}주차날짜`] || '',
+      att:  n[`${w}주차출결`] || ''
+    }));
+    const doneCount = weeks.filter(w => w.att === '출석').length;
+    const allDone   = doneCount >= 4;
+
+    return `
+    <div class="newbie-card">
+      <div class="newbie-header">
+        <div>
+          <div class="newbie-name">
+            ${n['이름']}
+            <small style="color:var(--gray-400);font-weight:400;">${n['학생ID']}</small>
+            ${grade ? `<span class="badge badge-blue" style="font-size:.65rem;margin-left:4px;">${grade}</span>` : ''}
+            ${gender ? `<span class="badge badge-gray" style="font-size:.65rem;">${gender}</span>` : ''}
+          </div>
+          <div style="font-size:.75rem;color:var(--gray-600);margin-top:3px;">
+            출석 ${doneCount}/4주 ${age ? `· ${age}` : ''}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="openEditStudentModal('${n['학생ID']}')"
+            style="padding:4px 10px;font-size:.72rem;border-color:var(--gray-200);color:var(--gray-600);">
+            ✏️ 수정
+          </button>
+          <div class="badge ${allDone ? 'badge-green' : 'badge-amber'}">${allDone ? '✅ 4주 완료' : '진행 중'}</div>
+        </div>
+      </div>
+      <div class="week-grid">
+        ${weeks.map((w, i) => `
+          <div class="week-item">
+            <div class="week-label">${i+1}주차</div>
+            <input class="mmdd-input" type="text" maxlength="5"
+              value="${toMmDd(w.date)}"
+              placeholder="MM.DD"
+              onblur="updateNewbieDate('${n['학생ID']}',${i+1},this.value)"
+              oninput="formatMmDdInput(this)">
+            <div style="display:flex;gap:4px;margin-top:5px;">
+              <button class="check-btn ${w.att === '출석' ? 'present' : 'none'}"
+                onclick="setNewbieAtt('${n['학생ID']}',${i+1},'출석',this)">출석</button>
+              <button class="check-btn ${w.att === '결석' ? 'absent' : 'none'}"
+                onclick="setNewbieAtt('${n['학생ID']}',${i+1},'결석',this)">결석</button>
+            </div>
+          </div>`).join('')}
+      </div>
+      ${allDone ? `
+      <div class="assign-section">
+        <div style="font-size:.85rem;font-weight:600;margin-bottom:8px;color:var(--primary);">🎉 4주 출석 완료! 정규 반에 배정하세요.</div>
+        <button class="btn btn-success btn-sm" onclick="openAssignModal('${n['학생ID']}','${n['이름']}')">정규 반 배정하기 →</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// MM.DD 자동 포맷 (숫자 2자리 입력 후 . 자동 삽입)
+function formatMmDdInput(el) {
+  let v = el.value.replace(/[^\d.]/g, '');
+  // 점 없이 숫자만 3-4자리 입력 시 자동으로 점 삽입
+  if (/^\d{3,4}$/.test(v)) {
+    v = v.slice(0, 2) + '.' + v.slice(2);
+  }
+  el.value = v;
+}
+
+async function updateNewbieDate(id, week, rawVal) {
+  const date = parseMmDd(rawVal);
+  const newbie = allNewbies.find(n => n['학생ID'] === id);
+  if (!newbie) return;
+  const attKey = `${week}주차출결`;
+  await callGAS('updateNewbieAtt', {studentId:id, weekNum:week, date, status:newbie[attKey]||''});
+  newbie[`${week}주차날짜`] = date;
+}
+
+async function setNewbieAtt(id, week, status, btn) {
+  const dateKey = `${week}주차날짜`;
+  const newbie  = allNewbies.find(n=>n['학생ID']===id);
+  if (!newbie) return;
+  const date = newbie[dateKey] || '';
+  if (!date) { showToast('날짜를 먼저 입력해주세요.','error'); return; }
+  const r = await callGAS('updateNewbieAtt', {studentId:id, weekNum:week, date, status});
+  if (r.success) {
+    newbie[`${week}주차출결`] = status;
+    showToast('저장되었습니다.','success');
+    renderNewbieList();
+  } else showToast(r.message,'error');
+}
+
+function openAssignModal(id, name) {
+  document.getElementById('assignStudentId').value = id;
+  document.getElementById('assignModal').querySelector('.modal-title').textContent = `${name} - 반 배정`;
+  const classes = [...new Set(allStudents.filter(s=>s['상태']==='등록').map(s=>s['학년-반']))].sort();
+  const teachers = allTeachers.filter(t=>t['구분']==='담임');
+  const opts = classes.map(c=>`<option value="${c}">${c}</option>`);
+  if (!opts.length) opts.push(`<option value="">반을 먼저 생성해주세요</option>`);
+  document.getElementById('assignClass').innerHTML = opts.join('');
+  openModal('assignModal');
+}
+
+async function confirmAssign() {
+  const id  = document.getElementById('assignStudentId').value;
+  const cls = document.getElementById('assignClass').value;
+  if (!cls) { showToast('반을 선택해주세요.','error'); return; }
+  const r = await callGAS('assignToClass', {studentId:id, targetClass:cls});
+  if (r.success) {
+    showToast(r.message, 'success');
+    closeModal('assignModal');
+    await loadStudents(); await loadNewbies();
+    renderDashboard(); renderNewbieList(); renderRecords();
+    setupAttendanceDateSelect();
+  } else showToast(r.message,'error');
+}
+
+// ══════════════════════════════════════════
+// 교적 관리 뷰
+// ══════════════════════════════════════════
+let currentRecordTab = 'students';
+let recSortKey = 'class';
+
+function switchRecordTab(tab) {
+  currentRecordTab = tab;
+  document.getElementById('recordStudentList').style.display = tab === 'students' ? '' : 'none';
+  document.getElementById('recordTeacherList').style.display  = tab === 'teachers' ? '' : 'none';
+  document.getElementById('recSortBar').style.display = tab === 'students' ? '' : 'none';
+  document.getElementById('recTabStudents').classList.toggle('active', tab === 'students');
+  document.getElementById('recTabTeachers').classList.toggle('active', tab === 'teachers');
+  if (tab === 'students') renderRecords();
+  else renderTeacherRecords();
+}
+
+function toggleRecSortMenu() {
+  const m = document.getElementById('recSortMenu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+
+function setRecSort(key) {
+  recSortKey = key;
+  const labels = {
+    name_asc:'이름 ↑', name_desc:'이름 ↓',
+    age_asc:'나이 ↑', age_desc:'나이 ↓',
+    status:'상태별', class:'학년-반순'
+  };
+  document.getElementById('recSortLabel').textContent = labels[key] || key;
+  // 체크 표시
+  document.querySelectorAll('[id^="rschk_"]').forEach(el => el.style.opacity = '0');
+  const chk = document.getElementById(`rschk_${key}`);
+  if (chk) chk.style.opacity = '1';
+  document.getElementById('recSortMenu').style.display = 'none';
+  renderRecords();
+}
+
+// 학년-반 정렬 우선순위
+function classOrder(c) {
+  if (!c) return '9_zzz';
+  if (c.startsWith('초6')) return '1_' + c;
+  if (c.startsWith('중1')) return '2_' + c;
+  if (c.startsWith('중2')) return '3_' + c;
+  if (c.startsWith('중3')) return '4_' + c;
+  if (c.startsWith('고1')) return '5_' + c;
+  if (c.startsWith('고2')) return '6_' + c;
+  if (c.startsWith('고3')) return '7_' + c;
+  return '9_' + c;
+}
+
+const STATUS_ORDER = ['등록','심방필요','장결자','유학중','새친구'];
+
+function sortStudents(list) {
+  const s = [...list];
+  switch (recSortKey) {
+    case 'name_asc':  return s.sort((a,b)=>a['이름'].localeCompare(b['이름'],'ko'));
+    case 'name_desc': return s.sort((a,b)=>b['이름'].localeCompare(a['이름'],'ko'));
+    case 'age_asc':   return s.sort((a,b)=>(Number(a['나이'])||0)-(Number(b['나이'])||0));
+    case 'age_desc':  return s.sort((a,b)=>(Number(b['나이'])||0)-(Number(a['나이'])||0));
+    case 'status':    return s.sort((a,b)=>{
+      const ai = STATUS_ORDER.indexOf(a['상태']); const bi = STATUS_ORDER.indexOf(b['상태']);
+      return (ai<0?99:ai)-(bi<0?99:bi);
+    });
+    case 'class':
+    default:          return s.sort((a,b)=>classOrder(a['학년-반']).localeCompare(classOrder(b['학년-반'])));
+  }
+}
+
+function renderRecords() {
+  const el = document.getElementById('recordStudentList');
+  const q = searchQuery.toLowerCase();
+  const filtered = sortStudents(allStudents.filter(s => !q || s['이름'].includes(q)));
+  if (!filtered.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📚</div>학생이 없습니다.</div>`; return; }
+  el.innerHTML = filtered.map(s => `
+    <div class="card" style="margin-bottom:8px;">
+      <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:.9rem;">${s['이름']} <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.68rem;">${s['상태']}</span></div>
+          <div style="font-size:.75rem;color:var(--gray-600);">${s['학년-반']} · ${s['성별']} · 만${s['나이']}세</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="openEditStudentModal('${s['학생ID']}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteStudentConfirm('${s['학생ID']}','${s['이름']}')">🗑️</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// 외부 클릭 시 정렬 메뉴 닫기
+
+// ── 교사 교적 정렬 ────────────────────────────────────────
+
+function toggleTeacherSortMenu() {
+  const m = document.getElementById('teacherSortMenu');
+  if (m) m.style.display = (m.style.display === 'none') ? 'block' : 'none';
+}
+function setTeacherSort(key) {
+  teacherSortKey = key;
+  const m = document.getElementById('teacherSortMenu');
+  if (m) m.style.display = 'none';
+  renderTeacherRecords();
+}
+
+function renderTeacherRecords() {
+  const el = document.getElementById('recordTeacherList');
+  if (!el) return;
+  const q = searchQuery.toLowerCase();
+  let filtered = allTeachers.filter(t => !q || (t['\uc774\ub984']||'').includes(q));
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">\ud83d\udc68\u200d\ud83c\udfeb</div>\uad50\uc0ac\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.</div>';
+    return;
+  }
+  const TOP_ROLES = ['\uad50\uc5ed\uc790','\ubaa9\uc0ac','\uc804\ub3c4\uc0ac','\ubd80\uc7a5','\ub9ac\ub354\uc2ed'];
+  const FILTER_ROLES = ['\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300'];
+  function isTop(t) { return (t['\uad6c\ubd84']||'').split(',').map(r=>r.trim()).some(r=>TOP_ROLES.includes(r)); }
+  const anyChecked = FILTER_ROLES.some(r => _teacherRoleFilter.has(r));
+  if (anyChecked) {
+    filtered = filtered.filter(t => {
+      if (isTop(t)) return true;
+      return (t['\uad6c\ubd84']||'').split(',').map(r=>r.trim()).some(r => _teacherRoleFilter.has(r));
+    });
+  }
+  const topTeachers = filtered.filter(isTop);
+  let regular = filtered.filter(t => !isTop(t));
+  switch(teacherSortKey) {
+    case 'name_asc':   regular.sort((a,b)=>a['\uc774\ub984'].localeCompare(b['\uc774\ub984'],'ko')); break;
+    case 'name_desc':  regular.sort((a,b)=>b['\uc774\ub984'].localeCompare(a['\uc774\ub984'],'ko')); break;
+    case 'class_asc':  regular.sort((a,b)=>classOrder(a['\ub2f4\ub2f9 \ud559\ub144-\ubc18']).localeCompare(classOrder(b['\ub2f4\ub2f9 \ud559\ub144-\ubc18']))); break;
+    case 'class_desc': regular.sort((a,b)=>classOrder(b['\ub2f4\ub2f9 \ud559\ub144-\ubc18']).localeCompare(classOrder(a['\ub2f4\ub2f9 \ud559\ub144-\ubc18']))); break;
+    default: break;
+  }
+  el.innerHTML = _buildTeacherSortBar(anyChecked) + _buildTeacherFilterTags(anyChecked, FILTER_ROLES)
+    + (topTeachers.length ? _teacherSectionHeader('\ud83d\udccc \uad50\uc5ed\uc790 \u00b7 \ub9ac\ub354\uc2ed', topTeachers.length) : '')
+    + topTeachers.map(_renderTeacherCard).join('')
+    + (regular.length ? _teacherSectionHeader('\uc77c\ubc18 \uad50\uc0ac', regular.length) : '')
+    + regular.map(_renderTeacherCard).join('');
+}
+
+function _teacherSectionHeader(label, count) {
+  return '<div style="font-size:.7rem;font-weight:800;color:var(--gray-400);letter-spacing:.05em;padding:6px 2px;border-bottom:1px solid var(--gray-100);margin-bottom:6px;">'
+    + label + ' (' + count + '\uba85)</div>';
+}
+
+function _renderTeacherCard(t) {
+  const id = t['\uad50\uc0acID'];
+  const name = t['\uc774\ub984'];
+  const roles = (t['\uad6c\ubd84']||'').split(',').map(r=>r.trim());
+  const badges = roles.map(r=>'<span class="badge badge-amber" style="font-size:.62rem;">' + r + '</span>').join(' ');
+  return '<div class="card" style="margin-bottom:6px;cursor:pointer;" onclick="showTeacherDetail(this.dataset.id)" data-id="' + id + '">'
+    + '<div class="card-body" style="display:flex;align-items:center;gap:10px;padding:10px 14px;">'
+    + '<div style="flex:1"><div style="font-weight:700;font-size:.88rem;">' + name + ' ' + badges + '</div>'
+    + '<div style="font-size:.73rem;color:var(--gray-500);">' + (t['\ub2f4\ub2f9 \ud559\ub144-\ubc18']||'\ub2f4\ub2f9\ubc18 \uc5c6\uc74c') + ' \u00b7 ' + (t['\uc5f0\ub77d\uccb4']||'-') + '</div></div>'
+    + '<div style="display:flex;gap:6px;">'
+    + '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openEditTeacherModal(this.closest(\'.card\').dataset.id)">\u270f\ufe0f</button>'
+    + '<button class="btn btn-danger btn-sm" data-name="' + name + '" onclick="event.stopPropagation();deleteTeacherConfirm(this.closest(\'.card\').dataset.id,this.dataset.name)">\ud83d\uddd1\ufe0f</button>'
+    + '</div></div></div>';
+}
+
+function _buildTeacherSortBar(anyChecked) {
+  const lbl = TEACHER_SORT_LABELS[teacherSortKey] || '\uae30\ubcf8\uc21c';
+  const FILTER_ROLES = ['\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300'];
+  const clearHtml = anyChecked ? '<span onclick="_teacherRoleFilter.clear();renderTeacherRecords();event.stopPropagation();" style="font-size:.67rem;color:var(--primary);cursor:pointer;font-weight:700;margin-left:auto;">\uc804\uccb4\ud574\uc81c</span>' : '';
+  const mkCheck = (key, label) => {
+    const op = teacherSortKey === key ? 1 : 0;
+    return '<div class="sort-menu-item" onclick="setTeacherSort(\'' + key + '\')">' + label + ' <span class="sort-check" style="opacity:' + op + '">\u2713</span></div>';
+  };
+  const filterRows = FILTER_ROLES.map(r => {
+    const checked = _teacherRoleFilter.has(r);
+    const bg = checked ? 'var(--primary)' : '#fff';
+    const bd = checked ? 'var(--primary)' : 'var(--gray-300)';
+    const clr = checked ? '#fff' : 'transparent';
+    return '<div class="sort-menu-item" onclick="_toggleTeacherRoleFilter(\'' + r + '\');event.stopPropagation();" style="display:flex;align-items:center;gap:7px;">'
+      + '<span style="width:15px;height:15px;border:1.5px solid ' + bd + ';border-radius:3px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:' + bg + ';color:' + clr + ';font-size:.7rem;font-weight:900;">'
+      + (checked ? '\u2713' : '') + '</span>' + r + '</div>';
+  }).join('');
+
+  return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+    + '<span style="font-size:.75rem;color:var(--gray-400);flex-shrink:0;">\uc815\ub82c/\ud544\ud130</span>'
+    + '<div style="position:relative;" id="teacherSortWrap">'
+    + '<button class="sort-dropdown-btn" onclick="toggleTeacherSortMenu()" style="font-size:.75rem;padding:5px 12px;">\ud83d\udd03 ' + lbl + (anyChecked ? ' \u00b7 \ud544\ud130' : '') + ' \u25bc</button>'
+    + '<div class="sort-menu" id="teacherSortMenu" style="display:none;min-width:200px;">'
+    + mkCheck('default', '\uae30\ubcf8\uc21c')
+    + '<div class="sort-group-label">\uc774\ub984</div>'
+    + mkCheck('name_asc', '\u2191 \uc774\ub984 \uc624\ub984\ucc28\uc21c')
+    + mkCheck('name_desc', '\u2193 \uc774\ub984 \ub0b4\ub9bc\ucc28\uc21c')
+    + '<div class="sort-group-label">\ud559\ub144\ubcc4</div>'
+    + mkCheck('class_asc', '\u2191 \ud559\ub144 \uc624\ub984\ucc28\uc21c')
+    + mkCheck('class_desc', '\u2193 \ud559\ub144 \ub0b4\ub9bc\ucc28\uc21c')
+    + '<div class="sort-group-label" style="display:flex;align-items:center;">\uad6c\ubd84\ubcc4 \ud544\ud130 ' + clearHtml + '</div>'
+    + filterRows
+    + '</div></div></div>';
+}
+
+function _buildTeacherFilterTags(anyChecked, FILTER_ROLES) {
+  if (!anyChecked) return '';
+  const tags = FILTER_ROLES.filter(r=>_teacherRoleFilter.has(r)).map(r =>
+    '<span style="font-size:.72rem;background:var(--primary-lt);color:var(--primary);padding:2px 8px;border-radius:50px;border:1px solid var(--primary);cursor:pointer;" onclick="_teacherRoleFilter.delete(\'' + r + '\');renderTeacherRecords();">' + r + ' \u2715</span>'
+  ).join('');
+  return '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">'
+    + tags
+    + '<span style="font-size:.72rem;color:var(--gray-400);padding:2px 6px;cursor:pointer;text-decoration:underline;" onclick="_teacherRoleFilter.clear();renderTeacherRecords();">\uc804\uccb4 \ubcf4\uae30</span>'
+    + '</div>';
+}
+
+
+const TEACHER_SORT_LABELS = {default:'기본순',name_asc:'이름 ↑',name_desc:'이름 ↓',class_asc:'학년 ↑',class_desc:'학년 ↓',role:'구분필터'};
+let teacherSortKey = 'default';
+const _teacherRoleFilter = new Set(); // 선택된 구분 필터
+
+function _toggleTeacherRoleFilter(role) {
+  if (_teacherRoleFilter.has(role)) _teacherRoleFilter.delete(role);
+  else _teacherRoleFilter.add(role);
+  renderTeacherRecords();
+  // 메뉴 다시 열기
+  setTimeout(() => {
+    const m = document.getElementById('teacherSortMenu');
+    if (m) m.style.display = 'block';
+  }, 10);
+}
+
+function toggleTeacherSortMenu() {
+  const m = document.getElementById('teacherSortMenu');
+  if (m) m.style.display = (m.style.display === 'none') ? 'block' : 'none';
+}
+function setTeacherSort(key) {
+  teacherSortKey = key;
+  const m = document.getElementById('teacherSortMenu');
+  if (m) m.style.display = 'none';
+  renderTeacherRecords();
+}
+
+
+
+document.addEventListener('click', e => {
+  const recWrap = document.getElementById('recSortWrap');
+  if (recWrap && !recWrap.contains(e.target)) {
+    const m = document.getElementById('recSortMenu');
+    if (m) m.style.display='none';
+  }
+  const tWrap = document.getElementById('teacherSortWrap');
+  if (tWrap && !tWrap.contains(e.target)) {
+    const m = document.getElementById('teacherSortMenu');
+    if (m) m.style.display='none';
+  }
+});
+
+function showStudentDetail(id) {
+  const s = allStudents.find(s=>s['학생ID']===id);
+  if (!s) return;
+  document.getElementById('detailTitle').textContent = s['이름'] + ' 상세정보';
+  document.getElementById('detailBody').innerHTML = `
+    <div style="display:grid;gap:10px;">
+      ${detailRow('이름', s['이름'])}
+      ${detailRow('학년-반', s['학년-반'])}
+      ${detailRow('담임교사', s['담임교사']||'-')}
+      ${detailRow('성별/나이', `${s['성별']} / 만${s['나이']}세`)}
+      ${detailRow('생년월일', s['생년월일']||'-')}
+      ${detailRow('본인연락처', s['본인연락처']||'-')}
+      ${detailRow('학부모연락처', s['학부모연락처']||'-')}
+      ${s['주소'] ? detailRow('주소', s['주소']) : ''}
+      ${detailRow('상태', `<span class="badge ${statusBadgeClass(s['상태'])}">${s['상태']}</span>`)}
+    </div>`;
+  document.getElementById('detailFooter').innerHTML = `
+    <button class="btn btn-outline" style="flex:1" onclick="closeModal('detailModal')">닫기</button>
+    <button class="btn btn-primary" style="flex:2" onclick="closeModal('detailModal');openEditStudentModal('${id}')">✏️ 수정</button>`;
+  openModal('detailModal');
+}
+
+function showTeacherDetail(id) {
+  const t = allTeachers.find(t=>t['교사ID']===id);
+  if (!t) return;
+  document.getElementById('detailTitle').textContent = t['이름'] + ' 선생님';
+  document.getElementById('detailBody').innerHTML = `
+    <div style="display:grid;gap:10px;">
+      ${detailRow('이름', t['이름'])}
+      ${detailRow('담당반', t['담당 학년-반']||'미배정')}
+      ${detailRow('연락처', t['연락처']||'-')}
+      ${t['생년월일'] ? detailRow('생년월일', t['생년월일']) : ''}
+      ${t['주소'] ? detailRow('주소', t['주소']) : ''}
+      ${detailRow('구분', (t['구분']||'').split(',').map(r=>`<span class="badge badge-amber">${r.trim()}</span>`).join(' '))}
+    </div>`;
+  document.getElementById('detailFooter').innerHTML = `
+    <button class="btn btn-outline" style="flex:1" onclick="closeModal('detailModal')">닫기</button>
+    <button class="btn btn-primary" style="flex:2" onclick="closeModal('detailModal');openEditTeacherModal('${id}')">✏️ 수정</button>`;
+  openModal('detailModal');
+}
+
+function detailRow(label, value) {
+  return `<div style="display:flex;gap:12px;padding:10px;background:var(--gray-50);border-radius:8px;align-items:center;">
+    <span style="font-size:.78rem;font-weight:700;color:var(--gray-600);min-width:80px;">${label}</span>
+    <span style="font-size:.88rem;">${value}</span>
+  </div>`;
+}
+
+// ── 한국 나이 & 만 나이 자동 계산 ───────────────────────────
+function calcAgeFromBirth(yymmdd) {
+  const val = String(yymmdd).replace(/\D/g, '');
+  const ageEl    = document.getElementById('sAge');
+  const korAgeEl = document.getElementById('sKorAge');
+  const hintEl   = document.getElementById('ageHint');
+  function reset(msg) {
+    if (ageEl) { ageEl.value = ''; ageEl.placeholder = msg || '만 나이'; }
+    if (korAgeEl) { korAgeEl.value = ''; korAgeEl.placeholder = msg || '한국 나이'; }
+    if (hintEl) hintEl.style.display = 'none';
+  }
+  if (val.length < 6) { reset('자동 계산'); return; }
+  const yy = parseInt(val.slice(0,2));
+  const mm = parseInt(val.slice(2,4));
+  const dd = parseInt(val.slice(4,6));
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) { reset('날짜 오류'); return; }
+  const today = new Date();
+  const currentYY = today.getFullYear() % 100;
+  const fullYear = yy <= currentYY ? 2000 + yy : 1900 + yy;
+  let intAge = today.getFullYear() - fullYear;
+  if (today < new Date(today.getFullYear(), mm-1, dd)) intAge -= 1;
+  const korAge = today.getFullYear() - fullYear + 1;
+  if (intAge < 0 || intAge > 120) { reset('확인 필요'); return; }
+  if (korAgeEl) korAgeEl.value = korAge + '세';
+  if (ageEl)    ageEl.value    = intAge + '세';
+  if (hintEl) {
+    const kEl = document.getElementById('ageKorDisplay');
+    const iEl = document.getElementById('ageIntDisplay');
+    if (kEl) kEl.textContent = korAge;
+    if (iEl) iEl.textContent = intAge;
+    hintEl.style.display = 'block';
+  }
+}
+
+function openAddStudentModal(isNewbie=false) {
+  document.getElementById('studentModalTitle').textContent = '학생 등록';
+  document.getElementById('sId').value = '';
+  document.getElementById('sName').value = '';
+  document.getElementById('sGender').value = '남';
+  document.getElementById('sAge').value = '';
+  document.getElementById('sAge').placeholder = '만 나이';
+  if (document.getElementById('sKorAge')) document.getElementById('sKorAge').value = '';
+  if (document.getElementById('ageHint')) document.getElementById('ageHint').style.display = 'none';
+  document.getElementById('sBirth').value = '';
+  document.getElementById('sClass').value = isNewbie ? '새친구' : '';
+  document.getElementById('sTeacher').value = '';
+  document.getElementById('sStatus').value = isNewbie ? '새친구' : '등록';
+  document.getElementById('sContact').value = '';
+  document.getElementById('sParent').value = '';
+  document.getElementById('sAddress').value = '';
+  openModal('studentModal');
+}
+
+function openEditStudentModal(id) {
+  const s = allStudents.find(s=>s['학생ID']===id);
+  if (!s) return;
+  document.getElementById('studentModalTitle').textContent = '학생 정보 수정';
+  document.getElementById('sId').value = s['학생ID'];
+  document.getElementById('sName').value = s['이름'];
+  document.getElementById('sGender').value = s['성별'];
+  document.getElementById('sAge').value = s['나이'];
+  if (document.getElementById('sKorAge')) document.getElementById('sKorAge').value = s['한국나이'] || '';
+  document.getElementById('sBirth').value = s['생년월일'];
+  if (s['생년월일'] && typeof calcAgeFromBirth === 'function') calcAgeFromBirth(s['생년월일']);
+  document.getElementById('sClass').value = s['학년-반'];
+  document.getElementById('sTeacher').value = s['담임교사']||'';
+  document.getElementById('sStatus').value = s['상태'];
+  document.getElementById('sContact').value = s['본인연락처']||'';
+  document.getElementById('sParent').value = s['학부모연락처']||'';
+  document.getElementById('sAddress').value = s['주소']||'';
+  openModal('studentModal');
+}
+
+async function submitStudent() {
+  const id = document.getElementById('sId').value;
+  const payload = {
+    id,
+    name: document.getElementById('sName').value.trim(),
+    gender: document.getElementById('sGender').value,
+    age: parseInt(document.getElementById('sAge').value) || '',
+    birthdate: document.getElementById('sBirth').value.trim(),
+    classGroup: document.getElementById('sClass').value.trim() || '새친구',
+    teacher: document.getElementById('sTeacher').value.trim(),
+    status: document.getElementById('sStatus').value,
+    contact: document.getElementById('sContact').value.trim(),
+    parentContact: document.getElementById('sParent').value.trim(),
+    address: document.getElementById('sAddress').value.trim(),
+  };
+  if (!payload.name) { showToast('이름을 입력해주세요.', 'error'); return; }
+  const action = id ? 'updateStudent' : 'addStudent';
+  const r = await callGAS(action, payload);
+  if (r.success) {
+    showToast(r.message || '저장되었습니다.', 'success');
+    closeModal('studentModal');
+    await loadStudents(); await loadNewbies();
+    renderDashboard(); renderNewbieList(); renderRecords();
+    setupAttendanceDateSelect();
+  } else showToast(r.message, 'error');
+}
+
+async function deleteStudentConfirm(id, name) {
+  if (!confirm(`"${name}" 학생을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+  const r = await callGAS('deleteStudent', {id});
+  if (r.success) {
+    showToast('삭제되었습니다.','success');
+    await loadStudents();
+    renderDashboard(); renderRecords();
+  } else showToast(r.message,'error');
+}
+
+async function deleteTeacherConfirm(id, name) {
+  if (!confirm(`"${name}" 교사를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+  const r = await callGAS('deleteTeacher', {id});
+  if (r.success) {
+    showToast('삭제되었습니다.','success');
+    await loadTeachers();
+    renderDashboard(); renderTeacherRecords();
+  } else showToast(r.message,'error');
+}
+
+// ══════════════════════════════════════════
+// 교사 모달 CRUD
+// ══════════════════════════════════════════
+function toggleTeacherClassField() {
+  const checks = [...document.querySelectorAll('#tRoleCheckboxes input[type=checkbox]')];
+  const hasClass = checks.some(c => (c.value==='담임'||c.value==='부담임') && c.checked);
+  document.getElementById('tClassGroup').style.display = hasClass ? '' : 'none';
+}
+
+function getTeacherRoles() {
+  return [...document.querySelectorAll('#tRoleCheckboxes input[type=checkbox]:checked')].map(c=>c.value);
+}
+
+function setTeacherRoles(roleStr) {
+  const roles = roleStr ? roleStr.split(',').map(r=>r.trim()) : [];
+  document.querySelectorAll('#tRoleCheckboxes input[type=checkbox]').forEach(c => {
+    c.checked = roles.includes(c.value);
+  });
+  toggleTeacherClassField();
+}
+
+function openAddTeacherModal() {
+  document.getElementById('teacherModalTitle').textContent = '교사 등록';
+  document.getElementById('tId').value = '';
+  document.getElementById('tName').value = '';
+  document.getElementById('tContact').value = '';
+  document.getElementById('tBirth').value = '';
+  document.getElementById('tClass').value = '';
+  document.getElementById('tAddress').value = '';
+  setTeacherRoles('담임');
+  openModal('teacherModal');
+}
+
+function openEditTeacherModal(id) {
+  const t = allTeachers.find(t=>t['교사ID']===id);
+  if (!t) return;
+  document.getElementById('teacherModalTitle').textContent = '교사 정보 수정';
+  document.getElementById('tId').value = t['교사ID'];
+  document.getElementById('tName').value = t['이름'];
+  document.getElementById('tContact').value = t['연락처']||'';
+  document.getElementById('tBirth').value = t['생년월일']||'';
+  document.getElementById('tClass').value = t['담당 학년-반']||'';
+  document.getElementById('tAddress').value = t['주소']||'';
+  setTeacherRoles(t['구분']||'담임');
+  openModal('teacherModal');
+}
+
+async function submitTeacher() {
+  const id = document.getElementById('tId').value;
+  const roles = getTeacherRoles();
+  if (!roles.length) { showToast('구분을 하나 이상 선택해주세요.','error'); return; }
+  const hasClassRole = roles.includes('담임') || roles.includes('부담임');
+  const payload = {
+    id,
+    name: document.getElementById('tName').value.trim(),
+    contact: document.getElementById('tContact').value.trim(),
+    birthdate: document.getElementById('tBirth').value.trim(),
+    classGroup: hasClassRole ? document.getElementById('tClass').value.trim() : '',
+    role: roles.join(','),
+    address: document.getElementById('tAddress').value.trim(),
+  };
+  if (!payload.name) { showToast('이름을 입력해주세요.','error'); return; }
+  const action = id ? 'updateTeacher' : 'addTeacher';
+  const r = await callGAS(action, payload);
+  if (r.success) {
+    showToast(r.message||'저장되었습니다.','success');
+    closeModal('teacherModal');
+    await loadTeachers();
+    renderDashboard();
+    renderTeacherRecords();
+  } else showToast(r.message,'error');
+}
+
+// ══════════════════════════════════════════
+// 모달 / 토스트 / 유틸
+// ══════════════════════════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  document.body.style.overflow='';
+}
+
+let toastTimer;
+function showToast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + (type==='success'?'success':type==='error'?'error':'');
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2800);
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-').map(Number);
+  const dt = new Date(y, m - 1, day);
+  const days = ['일','월','화','수','목','금','토'];
+  return m + '/' + day + ' (' + days[dt.getDay()] + ')';
+}
+
+// 모달 배경 클릭시 닫기
+document.querySelectorAll('.modal-backdrop').forEach(el => {
+  el.addEventListener('click', e => { if (e.target===el) closeModal(el.id); });
+});
+
+// ══════════════════════════════════════════
+// 네비게이션
+// ══════════════════════════════════════════
+function goHome() {
+  clearSearch();
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-dashboard').classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const homeBtn = document.querySelector('.nav-btn[data-view="dashboard"]');
+  if (homeBtn) homeBtn.classList.add('active');
+}
+
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    clearSearch();
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    const viewId = 'view-' + btn.dataset.view;
+    document.getElementById(viewId).classList.add('active');
+    if (btn.dataset.view === 'newbie') renderNewbieList();
+    if (btn.dataset.view === 'records') switchRecordTab(currentRecordTab || 'students');
+    if (btn.dataset.view === 'attendance') loadAttendanceStats();
+  });
+});
+
+// ══════════════════════════════════════════
+// 헤더 검색
+// ══════════════════════════════════════════
+let _isComposing = false;
+
+const _searchInput = document.getElementById('globalSearch');
+
+_searchInput.addEventListener('compositionstart', () => { _isComposing = true; });
+
+_searchInput.addEventListener('compositionend', e => {
+  _isComposing = false;
+  searchQuery = e.target.value.trim();
+  renderSearchDropdown();
+});
+
+_searchInput.addEventListener('input', e => {
+  if (_isComposing) return;
+  searchQuery = e.target.value.trim();
+  renderSearchDropdown();
+});
+
+_searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { clearSearch(); return; }
+  if (e.key === 'Enter' && !_isComposing) {
+    e.preventDefault();
+    openSearchPage(searchQuery);
+  }
+});
+
+function clearSearch() {
+  document.getElementById('globalSearch').value = '';
+  searchQuery = '';
+  document.getElementById('searchDropdown').classList.remove('show');
+  document.getElementById('searchClearBtn').classList.remove('show');
+}
+
+// 검색 대상: 이름 + 본인연락처 + 학부모연락처
+function matchStudent(s, q) {
+  if (!q) return false;
+  return (s['이름'] || '').includes(q) ||
+         (s['본인연락처'] || '').replace(/-/g,'').includes(q.replace(/-/g,'')) ||
+         (s['학부모연락처'] || '').replace(/-/g,'').includes(q.replace(/-/g,''));
+}
+
+function renderSearchDropdown() {
+  const dropdown = document.getElementById('searchDropdown');
+  const clearBtn = document.getElementById('searchClearBtn');
+  const q = searchQuery.toLowerCase();
+
+  if (!q) { dropdown.classList.remove('show'); clearBtn.classList.remove('show'); return; }
+  clearBtn.classList.add('show');
+
+  const matchStudents = allStudents.filter(s => matchStudent(s, q));
+  const matchTeachers = allTeachers.filter(t => t['이름'] && t['이름'].toLowerCase().includes(q));
+
+  if (!matchStudents.length && !matchTeachers.length) {
+    dropdown.innerHTML = `<div class="search-drop-empty">🔍 "<strong>${escapeHtml(searchQuery)}</strong>" 검색 결과가 없습니다.</div>`;
+    dropdown.classList.add('show');
+    return;
+  }
+
+  let html = '';
+  if (matchStudents.length) {
+    html += `<div class="search-drop-header">학생 ${matchStudents.length}명</div>`;
+    html += matchStudents.slice(0,8).map(s => {
+      // 연락처로 검색된 경우 연락처 표시
+      const nameMatch = (s['이름']||'').toLowerCase().includes(q);
+      const subContact = !nameMatch ? `<span style="color:var(--primary);font-size:.68rem;">📱 연락처 매칭</span> ` : '';
+      return `<div class="search-drop-item" onclick="closeSearchAndShow('student','${s['학생ID']}')">
+        <div>
+          <div class="search-drop-name">${highlightMatch(s['이름'], nameMatch ? searchQuery : '')}
+            <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;margin-left:4px;">${s['상태']}</span>
+          </div>
+          <div class="search-drop-sub">${subContact}${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${s['나이']||'-'}세</div>
+        </div>
+      </div>`;
+    }).join('');
+    if (matchStudents.length > 8) html += `<div style="font-size:.72rem;color:var(--gray-400);padding:6px 12px;">외 ${matchStudents.length-8}명 더 있음 (엔터로 전체 검색)</div>`;
+  }
+  if (matchTeachers.length) {
+    html += `<div class="search-drop-header">교사 ${matchTeachers.length}명</div>`;
+    html += matchTeachers.slice(0,5).map(t => `
+      <div class="search-drop-item" onclick="closeSearchAndShow('teacher','${t['교사ID']}')">
+        <div>
+          <div class="search-drop-name">${highlightMatch(t['이름'], searchQuery)}</div>
+          <div class="search-drop-sub">${t['담당 학년-반']||'미배정'} · ${t['구분']}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  dropdown.innerHTML = html;
+  dropdown.classList.add('show');
+}
+
+function highlightMatch(text, query) {
+  if (!query) return escapeHtml(text);
+  const escaped = escapeHtml(text);
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+  return escaped.replace(re, '<mark style="background:#FEF08A;border-radius:2px;padding:0 1px;">$1</mark>');
+}
+
+function closeSearchAndShow(type, id) {
+  clearSearch();
+  if (type === 'student') showStudentDetail(id);
+  else showTeacherDetail(id);
+}
+
+// 엔터: 검색 결과 전용 화면으로 전환
+let _prevView = 'dashboard';
+function openSearchPage(q) {
+  if (!q) return;
+  document.getElementById('searchDropdown').classList.remove('show');
+  // 현재 활성 뷰 저장
+  const activeView = document.querySelector('.view.active');
+  if (activeView) _prevView = activeView.id.replace('view-','');
+
+  // 모든 뷰 비활성화, 검색 뷰 활성화
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-search').classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+  renderSearchPage(q);
+}
+
+function exitSearchPage() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const target = document.getElementById('view-' + _prevView) || document.getElementById('view-dashboard');
+  target.classList.add('active');
+  const navBtn = document.querySelector(`.nav-btn[data-view="${_prevView}"]`);
+  if (navBtn) navBtn.classList.add('active');
+  clearSearch();
+}
+
+function renderSearchPage(q) {
+  const qLow = q.toLowerCase();
+  document.getElementById('searchPageTitle').textContent = `"${q}" 검색 결과`;
+
+  const matchStudents = allStudents.filter(s => matchStudent(s, qLow));
+  const matchTeachers = allTeachers.filter(t => (t['이름']||'').toLowerCase().includes(qLow));
+
+  let html = '';
+
+  if (!matchStudents.length && !matchTeachers.length) {
+    html = `<div class="empty"><div class="empty-icon">🔍</div>검색 결과가 없습니다.</div>`;
+  }
+
+  if (matchStudents.length) {
+    html += `<div class="section-title" style="margin-bottom:8px;">👨‍🎓 학생 ${matchStudents.length}명</div>`;
+    html += matchStudents.map(s => {
+      const nameMatch = (s['이름']||'').toLowerCase().includes(qLow);
+      return `<div class="card" style="margin-bottom:8px;" onclick="showStudentDetail('${s['학생ID']}')">
+        <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:.9rem;">${s['이름']}
+              <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.68rem;">${s['상태']}</span>
+              ${!nameMatch?'<span style="font-size:.65rem;background:#DCFCE7;color:#166534;border-radius:50px;padding:1px 6px;margin-left:4px;">📱 연락처</span>':''}
+            </div>
+            <div style="font-size:.75rem;color:var(--gray-600);">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${s['나이']||'-'}세</div>
+            ${!nameMatch?`<div style="font-size:.7rem;color:var(--gray-400);">${s['본인연락처']||''} ${s['학부모연락처']||''}</div>`:''}
+          </div>
+          <span style="color:var(--gray-300);">›</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  if (matchTeachers.length) {
+    html += `<div class="section-title" style="margin:14px 0 8px;">👩‍🏫 교사 ${matchTeachers.length}명</div>`;
+    html += matchTeachers.map(t => `
+      <div class="card" style="margin-bottom:8px;" onclick="showTeacherDetail('${t['교사ID']}')">
+        <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:.9rem;">${t['이름']}
+              <span class="badge badge-amber" style="font-size:.65rem;">${t['구분']}</span>
+            </div>
+            <div style="font-size:.75rem;color:var(--gray-600);">${t['담당 학년-반']||'미배정'} · ${t['연락처']||'-'}</div>
+          </div>
+          <span style="color:var(--gray-300);">›</span>
+        </div>
+      </div>`).join('');
+  }
+
+  document.getElementById('searchPageContent').innerHTML = html;
+}
+
+// 드롭다운 외부 클릭 시 닫기
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('searchWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('searchDropdown').classList.remove('show');
+  }
+});
+
+// 생일 월 필터
+document.getElementById('monthFilter').addEventListener('click', e => {
+  const btn = e.target.closest('.month-btn');
+  if (!btn) return;
+  document.querySelectorAll('.month-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  filterMonth = parseInt(btn.dataset.month);
+  renderStudentList();
+});
+
+// ── 정렬 메뉴 외부 클릭 닫기 ─────────────────────────────
+document.addEventListener('click', e => {
+  ['recSortWrap','teacherSortWrap'].forEach(id => {
+    const wrap = document.getElementById(id);
+    const menuId = id === 'recSortWrap' ? 'recSortMenu' : 'teacherSortMenu';
+    if (wrap && !wrap.contains(e.target)) {
+      const m = document.getElementById(menuId);
+      if (m) m.style.display = 'none';
+    }
+  });
+});
+
+// ══════════════════════════════════════════
+// 시작 — sessionStorage 자동 로그인 시도
+// ══════════════════════════════════════════
+(async function startup() {
+  // ── 항상 로그인 화면을 먼저 보여줌 (기본값: display:flex)
+  document.getElementById('loginScreen').style.display = 'flex';
+
+  // ── 교사 목록 로드
+  await loadTeachers();
+
+  // ── 저장된 세션 확인
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('churchUser') || 'null'); } catch(e) {}
+
+  // 버전 불일치 → 세션 무효화 (이전 자동로그인 데이터 제거)
+  if (saved && saved._version !== APP_SESSION_VERSION) {
+    try { localStorage.removeItem('churchUser'); } catch(e) {}
+    saved = null;
+  }
+
+  if (!saved || !saved.name) {
+    // 세션 없음 → 로그인 화면 유지
+    return;
+  }
+
+  // ── 세션 유효성 검증 후 자동 로그인
+  if (saved.role === 'admin') {
+    if (!isAdminName(saved.name)) {
+      try { localStorage.removeItem('churchUser'); } catch(e) {}
+      return;
+    }
+    currentUser = { name: saved.name, role: 'admin', classGroup: saved.classGroup || '' };
+    const t = allTeachers.find(t => t['이름'] === saved.name);
+    if (t) currentUser.teacherObj = t;
+    completeLogin();
+
+  } else if (saved.role === 'newbie_teacher') {
+    const teacher = allTeachers.find(t => t['이름'] === saved.name);
+    if (!teacher || !hasRole(teacher, NEWBIE_TEACHER_ROLES)) {
+      try { localStorage.removeItem('churchUser'); } catch(e) {}
+      return;
+    }
+    currentUser = { name: teacher['이름'], role: 'newbie_teacher',
+      classGroup: teacher['담당 학년-반'] || '', teacherObj: teacher };
+    completeLogin();
+
+  } else {
+    // 일반교사 / 리더십
+    const teacher = allTeachers.find(t => t['이름'] === saved.name);
+    if (!teacher) {
+      try { localStorage.removeItem('churchUser'); } catch(e) {}
+      return;
+    }
+    currentUser = { name: teacher['이름'], role: getTeacherRole(teacher),
+      classGroup: teacher['담당 학년-반'] || '', teacherObj: teacher };
+    completeLogin();
+  }
+})();
+</script>
+</body>
+</html>
