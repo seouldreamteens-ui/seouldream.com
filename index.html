@@ -219,6 +219,15 @@ header{
 .att-x{color:#DC2626;font-weight:700;font-size:.8rem;}
 .att-empty{color:var(--gray-300);}
 .attstat-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--gray-100);}
+.att-note-btn{
+  background:var(--gray-100);border:1.5px solid var(--gray-200);
+  color:var(--gray-500);border-radius:6px;padding:4px 8px;
+  cursor:pointer;font-size:.82rem;transition:.15s;flex-shrink:0;
+}
+.att-note-btn:hover{background:var(--gray-200);}
+.att-note-btn.has-note{background:#FEF9C3;border-color:#FDE047;color:#854D0E;}
+.att-note-input{margin-top:5px;font-size:.82rem;}
+.att-note-wrap{padding:0 14px 8px;background:var(--gray-50);border-top:1px dashed var(--gray-100);}
 .filter-tag{
   font-size:.72rem;padding:4px 10px;border-radius:50px;
   background:var(--gray-100);border:1.5px solid var(--gray-200);
@@ -977,11 +986,13 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   <section class="view active" id="view-dashboard">
 
     <!-- 통계 카드 -->
-    <div class="stat-grid" id="statsGrid">
+    <div class="stat-grid" id="statsGrid" style="grid-template-columns:repeat(2,1fr);">
       <div class="stat-card"><div class="stat-num" id="statTotal">-</div><div class="stat-label">전체 학생</div></div>
       <div class="stat-card" onclick="showStatusList('등록')" style="cursor:pointer;" title="등록 학생 보기"><div class="stat-num" id="statActive" style="color:var(--success);">-</div><div class="stat-label">등록 ›</div></div>
       <div class="stat-card" onclick="showStatusList('새친구')" style="cursor:pointer;" title="새친구 보기"><div class="stat-num" id="statNewbie" style="color:var(--accent);">-</div><div class="stat-label">새친구 ›</div></div>
       <div class="stat-card" onclick="showStatusList('장결자')" style="cursor:pointer;" title="장결자 보기"><div class="stat-num" id="statAbsent" style="color:var(--danger);">-</div><div class="stat-label">장결자 ›</div></div>
+      <div class="stat-card" onclick="showStatusList('유학생')" style="cursor:pointer;" title="유학생 보기"><div class="stat-num" id="statStudy" style="color:#0EA5E9;">-</div><div class="stat-label">유학생 ›</div></div>
+      <div class="stat-card"><div class="stat-num" id="statTeacher" style="color:#7C3AED;">-</div><div class="stat-label">교사</div></div>
     </div>
 
     <!-- 공지사항 콜아웃 -->
@@ -1009,7 +1020,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
 
     <!-- ■ 설교·소그룹 콜아웃 (교사용 홈 전용) ─────────────────── -->
-    <div class="callout callout-sermon open" id="calloutSermon" style="display:none;">
+    <div class="callout callout-sermon open" id="calloutSermon">
       <div class="callout-header" onclick="toggleCallout('calloutSermon')">
         <div class="callout-title">
           <span class="callout-icon">✝️</span>
@@ -1193,28 +1204,6 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <button class="btn btn-primary btn-sm" onclick="openAddStudentModal(true)">+ 직접 등록</button>
       </div>
     </div>
-
-    <!-- 구글 폼 연동 안내 배너 -->
-    <div class="callout callout-notice" id="formSyncBanner" style="margin-bottom:12px;">
-      <div class="callout-header" onclick="toggleCallout('formSyncBanner')" style="padding:11px 14px;">
-        <div class="callout-title" style="font-size:.85rem;">
-          <span class="callout-icon">📋</span>
-          <span>QR 구글 폼 연동</span>
-        </div>
-        <span class="callout-chevron">▼</span>
-      </div>
-      <div class="callout-body" style="padding-bottom:12px;">
-        <div style="font-size:.82rem;color:var(--gray-600);line-height:1.7;">
-          구글 설문(Google Form)에 새친구가 응답하면 <strong>「🔄 새친구 새로고침」</strong> 버튼을 누르거나, 자동 연동 트리거를 설정하면 바로 이 목록에 나타납니다.<br>
-          <span style="color:var(--primary);font-weight:600;">설정 방법 → Code.gs에서 <code>setupFormTrigger()</code> 실행</span>
-        </div>
-        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
-          <input class="form-control" id="formUrlInput" placeholder="구글 폼 URL 또는 스프레드시트 ID 입력"
-            style="font-size:.8rem;flex:1;">
-          <button class="btn btn-primary btn-sm" onclick="saveFormUrl()">저장</button>
-        </div>
-        <div id="formUrlSaved" style="font-size:.75rem;color:var(--success);margin-top:6px;display:none;">✅ 저장됨</div>
-      </div>
     </div>
 
     <!-- 정렬 드롭다운 -->
@@ -1546,7 +1535,7 @@ let allTeachers = [];
 let allNewbies  = [];
 let allSundays  = [];
 let currentAttRecords = {};
-let filterMonth = 0;
+let filterMonth = new Date().getMonth() + 1; // 앱 시작 시 이달로 기본 설정
 let searchQuery = '';
 
 // ── 현재 로그인 사용자 ──────────────────────
@@ -2407,11 +2396,12 @@ function doLogout() {
 // ══════════════════════════════════════════
 async function init() {
   allSundays = getSundays2026();
+  filterMonth = new Date().getMonth() + 1; // 이달 생일 기본 세팅
   await Promise.all([loadStudents(), loadTeachers(), loadNewbies()]);
   setupAttendanceDateSelect();
   renderDashboard();
   renderRecords();
-  // 교역자인 경우 출석 통계 로드
+  renderNewbieList();
   loadAttendanceStats();
 }
 
@@ -2790,8 +2780,11 @@ function showStatusList(status) {
     students = allStudents.filter(s => s['상태'] === '새친구' || s['상태'] === '새 친구');
     title = '🌱 새친구';
   } else if (status === '장결자') {
-    students = allStudents.filter(s => s['상태'] === '장결자' || s['상태'] === '유학중' || s['상태'] === '유학');
-    title = '⚠️ 장결자 / 유학';
+    students = allStudents.filter(s => s['상태'] === '장결자');
+    title = '⚠️ 장결자';
+  } else if (status === '유학생') {
+    students = allStudents.filter(s => s['상태'] === '유학중' || s['상태'] === '유학');
+    title = '✈️ 유학생';
   } else {
     students = allStudents.filter(s => s['상태'] === status);
     title = status;
@@ -2861,13 +2854,16 @@ function renderDashboard() {
 
     const active  = allStudents.filter(s => s['상태'] === '등록' || s['상태'] === '심방필요');
     const newbie  = allNewbies.filter(n => n['반배정완료여부'] !== 'TRUE');
-    const absent  = allStudents.filter(s => s['상태'] === '장결자' || s['상태'] === '유학중');
+    const absent  = allStudents.filter(s => s['상태'] === '장결자');
+    const study   = allStudents.filter(s => s['상태'] === '유학중' || s['상태'] === '유학');
     document.getElementById('statTotal').textContent  = allStudents.length;
     document.getElementById('statActive').textContent = active.length;
     document.getElementById('statNewbie').textContent = newbie.length;
-    document.getElementById('statTeacher').textContent= allTeachers.length;
+    const tEl = document.getElementById('statTeacher'); if (tEl) tEl.textContent = allTeachers.length;
     const absentStatEl = document.getElementById('statAbsent');
     if (absentStatEl) absentStatEl.textContent = absent.length;
+    const studyEl = document.getElementById('statStudy');
+    if (studyEl) studyEl.textContent = study.length;
 
     // 공지·일정 추가 버튼 노출 (교역자만)
     document.querySelectorAll('.callout-add-btn').forEach(b => b.style.removeProperty('display'));
@@ -2876,14 +2872,12 @@ function renderDashboard() {
     document.getElementById('calloutSermon').style.display = 'block';
     document.getElementById('sermonEditBtn').style.display = 'inline-flex';
 
-    // 생일 필터 기본값: 이달 자동 선택
+    // 생일 필터: 이달 탭이 active 되도록 갱신
     const thisMonth = new Date().getMonth() + 1;
-    const activeBtn = document.querySelector('.month-btn.active');
-    if (activeBtn && activeBtn.dataset.month === '0') {
-      document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
-      const thisBtn = document.querySelector(`.month-btn[data-month="${thisMonth}"]`);
-      if (thisBtn) { thisBtn.classList.add('active'); filterMonth = thisMonth; }
-    }
+    filterMonth = filterMonth || thisMonth;
+    document.querySelectorAll('.month-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.month) === filterMonth);
+    });
     renderStudentList();
 
   } else {
@@ -2909,7 +2903,7 @@ function renderDashboard() {
 
 function renderStudentList() {
   const el = document.getElementById('studentList');
-  const m = filterMonth > 0 ? filterMonth : new Date().getMonth() + 1;
+  const m = (filterMonth > 0) ? filterMonth : new Date().getMonth() + 1;
 
   function getBdMonth(bd) {
     const s = String(bd || '').replace(/\s/g, '');
@@ -3187,12 +3181,14 @@ function renderAttList() {
     const subLabel = r._isTeacher
       ? `<span style="font-size:.72rem;color:var(--gray-500);">${r._role}${r._class ? ' · ' + r._class : ''}</span>`
       : '';
+    const noteVal = r.note || '';
     return `
     <div class="att-row ${r.status==='결석'?'absent':''}" id="att-${r.studentId}">
       <div class="att-name">${r.name} ${subLabel}</div>
       <div class="att-toggle">
         <button class="att-on ${r.status==='출석'?'active':''}" onclick="setAtt('${r.studentId}','출석')">출석</button>
         <button class="att-off ${r.status==='결석'?'active':''}" onclick="setAtt('${r.studentId}','결석')">결석</button>
+        <button class="att-note-btn ${noteVal?'has-note':''}" onclick="toggleNoteInput('${r.studentId}')" title="특이사항">📝</button>
       </div>
     </div>
     ${r.status==='결석'?`
@@ -3206,6 +3202,12 @@ function renderAttList() {
         <option ${r.reason==='기타'?'selected':''}>기타</option>
       </select>
     </div>`:''}
+    <div class="att-note-wrap" id="note-${r.studentId}" style="display:${noteVal?'block':'none'};">
+      <input class="form-control att-note-input" id="noteinput-${r.studentId}"
+        placeholder="특이사항 입력..." value="${noteVal.replace(/"/g,'&quot;')}"
+        oninput="setNote('${r.studentId}',this.value)"
+        style="font-size:.82rem;margin-top:4px;">
+    </div>
   `}).join('');
 }
 
@@ -3217,6 +3219,24 @@ function setAtt(id, status) {
 function setReason(id, reason) {
   currentAttRecords[id].reason = reason;
 }
+function toggleNoteInput(id) {
+  const wrap = document.getElementById('note-' + id);
+  if (!wrap) return;
+  const isVisible = wrap.style.display !== 'none';
+  wrap.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) {
+    const inp = document.getElementById('noteinput-' + id);
+    if (inp) inp.focus();
+  }
+}
+function setNote(id, val) {
+  if (currentAttRecords[id]) {
+    currentAttRecords[id].note = val;
+    // 버튼 has-note 표시
+    const rows = document.querySelectorAll(`[onclick*="toggleNoteInput('${id}')"]`);
+    rows.forEach(btn => btn.classList.toggle('has-note', !!val));
+  }
+}
 
 async function saveAttendance() {
   const cls  = document.getElementById('attClass').value;
@@ -3224,7 +3244,7 @@ async function saveAttendance() {
   if (!cls || !date) return;
 
   const records = Object.values(currentAttRecords).map(r => ({
-    studentId: r.studentId, name: r.name, status: r.status, reason: r.reason||''
+    studentId: r.studentId, name: r.name, status: r.status, reason: r.reason||'', note: r.note||''
   }));
 
   const r = await callGAS('saveAttendance', {classGroup:cls, date, records});
@@ -3412,7 +3432,11 @@ async function _loadAttstatData(classFilter) {
 
   const r = await callGAS('getAttendanceTable', { classFilter, mode: _attstatMode });
   if (!r.success) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div>${r.message||'데이터 오류'}</div>`;
+    const isGasError = (r.message||'').includes('알 수 없는 액션');
+    const msg = isGasError
+      ? '⚠️ GAS 재배포 필요: Code.gs를 최신 버전으로 교체 후 새 버전으로 배포하세요.'
+      : (r.message || '데이터 오류');
+    el.innerHTML = `<div class="empty" style="padding:30px 16px;"><div class="empty-icon">⚠️</div><div style="font-size:.82rem;color:var(--danger);line-height:1.6;">${msg}</div></div>`;
     return;
   }
   _renderAttstatGrid(r.data);
@@ -3965,12 +3989,27 @@ function _studentCard(s) {
         <button class="btn btn-danger btn-sm" onclick="deleteStudentConfirm('${s['학생ID']}','${s['이름']}')">🗑️</button>
       </div>`
     : `<button class="btn btn-outline btn-sm" onclick="showStudentDetail('${s['학생ID']}')">상세</button>`;
+  // 나이 자동 계산 (생년월일에서)
+  let displayAge = s['나이'] || '';
+  if (!displayAge && s['생년월일']) {
+    const bd = String(s['생년월일']).replace(/\s/g,'');
+    if (/^\d{6}$/.test(bd)) {
+      const yy = parseInt(bd.slice(0,2));
+      const mm = parseInt(bd.slice(2,4));
+      const dd = parseInt(bd.slice(4,6));
+      const fy = yy <= (new Date().getFullYear()%100) ? 2000+yy : 1900+yy;
+      const today = new Date();
+      let age = today.getFullYear() - fy;
+      if (today < new Date(today.getFullYear(), mm-1, dd)) age--;
+      displayAge = age;
+    }
+  }
   return `<div class="card" style="margin-bottom:6px;" onclick="">
     <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:11px 14px;">
       <div style="width:34px;height:34px;border-radius:50%;background:var(--primary-lt);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary);font-size:.85rem;flex-shrink:0;">${s['이름'].charAt(0)}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:.88rem;">${s['이름']} <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;">${s['상태']}</span></div>
-        <div style="font-size:.73rem;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${s['나이']||'-'}세 · ${s['담임교사']||'-'}</div>
+        <div style="font-size:.73rem;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${displayAge||'-'}세 · ${s['담임교사']||'-'}</div>
       </div>
       ${btns}
     </div>
@@ -4186,6 +4225,23 @@ document.addEventListener('click', e => {
   }
 });
 
+function formatBirthdateDisplay(bd) {
+  if (!bd) return '-';
+  const s = String(bd).replace(/\s/g,'');
+  // YYMMDD 형식
+  if (/^\d{6}$/.test(s)) {
+    const yy = s.slice(0,2), mm = s.slice(2,4), dd = s.slice(4,6);
+    const fullYear = parseInt(yy) <= (new Date().getFullYear()%100) ? 2000+parseInt(yy) : 1900+parseInt(yy);
+    return `20${yy}. ${parseInt(mm)}. ${parseInt(dd)}.`;
+  }
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y,m,d] = s.split('-');
+    return `${y}. ${parseInt(m)}. ${parseInt(d)}.`;
+  }
+  return bd;
+}
+
 function showStudentDetail(id) {
   const s = allStudents.find(s=>s['학생ID']===id);
   if (!s) return;
@@ -4196,7 +4252,7 @@ function showStudentDetail(id) {
       ${detailRow('학년-반', s['학년-반'])}
       ${detailRow('담임교사', s['담임교사']||'-')}
       ${detailRow('성별/나이', `${s['성별']} / 만${s['나이']}세`)}
-      ${detailRow('생년월일', s['생년월일']||'-')}
+      ${detailRow('생년월일', formatBirthdateDisplay(s['생년월일']))}
       ${detailRow('본인연락처', s['본인연락처']||'-')}
       ${detailRow('학부모연락처(부)', s['학부모연락처(부)']||s['학부모연락처']||'-')}
       ${detailRow('학부모연락처(모)', s['학부모연락처(모)']||'-')}
