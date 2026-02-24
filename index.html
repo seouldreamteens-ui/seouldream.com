@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -856,7 +857,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <!-- STEP 1: 이름 입력 -->
     <div id="loginStep1">
       <div class="form-group">
-        <label class="form-label">이름</label>
+        <label class="form-label">이름 (아이디)</label>
         <input class="form-control" id="loginName" placeholder="예) 김선생" autocomplete="off"
           style="font-size:1rem;" onkeydown="if(event.key==='Enter')checkLoginName()">
       </div>
@@ -865,28 +866,28 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       </button>
     </div>
 
-    <!-- STEP 2: 비밀번호 입력 (교역자) -->
+    <!-- STEP 2: 비밀번호 입력 (전체 사용자 공통) -->
     <div id="loginStep2" style="display:none;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 14px;background:var(--primary-lt);border-radius:8px;">
-        <span style="font-size:1.2rem;">🔑</span>
+        <div style="width:36px;height:36px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1rem;" id="loginAvatar">?</div>
         <div>
-          <div style="font-weight:700;font-size:.9rem;" id="loginNameDisplay"></div>
-          <div style="font-size:.75rem;color:var(--gray-500);">교역자 · 비밀번호를 입력하세요</div>
+          <div style="font-weight:700;font-size:.95rem;" id="loginNameDisplay"></div>
+          <div style="font-size:.75rem;color:var(--gray-500);" id="loginRoleHint"></div>
         </div>
-        <button onclick="backToStep1()" style="margin-left:auto;background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:.8rem;">✕ 변경</button>
+        <button onclick="backToStep1()" style="margin-left:auto;background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:.8rem;padding:4px 6px;">✕</button>
       </div>
       <div class="form-group">
-        <label class="form-label">비밀번호</label>
+        <label class="form-label">비밀번호 <span style="font-size:.72rem;color:var(--gray-400);">(초기: 1234)</span></label>
         <div style="position:relative;">
           <input class="form-control" id="loginPw" type="password" placeholder="비밀번호 입력"
             style="font-size:1rem;padding-right:44px;"
-            onkeydown="if(event.key==='Enter')doAdminLoginWithPw()">
+            onkeydown="if(event.key==='Enter')doLoginWithPw()">
           <button onclick="togglePwVisible()" id="pwToggleBtn"
             style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.9rem;color:var(--gray-400);">👁</button>
         </div>
       </div>
-      <button class="btn btn-primary btn-full" onclick="doAdminLoginWithPw()" style="padding:13px;font-size:1rem;">
-        🔑 교역자 로그인
+      <button class="btn btn-primary btn-full" onclick="doLoginWithPw()" style="padding:13px;font-size:1rem;">
+        로그인 →
       </button>
     </div>
 
@@ -1383,6 +1384,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
           <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="새친구"> 새친구</label>
           <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="미디어"> 미디어</label>
           <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="찬양팀"> 찬양팀</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="워십팀"> 워십팀</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="사역팀"> 사역팀</label>
         </div>
       </div>
       <div class="form-group" id="tClassGroup" style="display:none;">
@@ -1444,7 +1447,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = ''; // ← 배포 후 웹앱 URL로 교체
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyZvvtSfK42bPvzzA0Lira38jgckL3FngX2nypyvZQpabxIeSups86AFEEH4pKUAYuwIw/exec'; // ← 배포 후 웹앱 URL로 교체
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -1467,14 +1470,16 @@ const ADMIN_NAMES = ['문현철', '장수산나', '마혁수', '김정로', '최
 // ── 세션 버전 (변경 시 모든 기존 세션 무효화) ──────────────────
 const APP_SESSION_VERSION = 'v2.0';
 
-function getAdminPassword() {
-  try { return localStorage.getItem('adminPw') || '1234'; } catch(e) { return '1234'; }
+// ── 사용자별 비밀번호 (localStorage: pw_이름) ─────────────────
+// 각 기기에 저장. 기본값 '1234'
+function getUserPassword(name) {
+  try { return localStorage.getItem('pw_' + name) || '1234'; } catch(e) { return '1234'; }
 }
-function setAdminPassword(pw) {
-  try { localStorage.setItem('adminPw', pw); } catch(e) {}
+function setUserPassword(name, pw) {
+  try { localStorage.setItem('pw_' + name, pw); } catch(e) {}
 }
-function verifyAdminPassword(pw) {
-  return pw === getAdminPassword();
+function verifyUserPassword(name, pw) {
+  return pw === getUserPassword(name);
 }
 function isAdminName(name) {
   return ADMIN_NAMES.includes(name);
@@ -2012,6 +2017,7 @@ function getSundays2026() {
 
 // 교사 이름으로 로그인
 // ── STEP 1: 이름 확인 ──────────────────────────────────────
+// ── STEP 1: 이름(아이디) 확인 ──────────────────────────────────
 async function checkLoginName() {
   if (!allTeachers.length) await loadTeachers();
   clearLoginError();
@@ -2019,57 +2025,67 @@ async function checkLoginName() {
   const name = document.getElementById('loginName').value.trim();
   if (!name) { showLoginError('이름을 입력해주세요.'); return; }
 
-  // 교역자 이름이면 → 비밀번호 단계로
-  if (isAdminName(name)) {
-    document.getElementById('loginStep1').style.display = 'none';
-    document.getElementById('loginStep2').style.display = 'block';
-    document.getElementById('loginNameDisplay').textContent = name;
-    document.getElementById('loginSubtitle').textContent = '교역자 로그인';
-    setTimeout(() => document.getElementById('loginPw').focus(), 100);
+  // 교역자 또는 교사명단에 있는지 확인
+  const isAdmin   = isAdminName(name);
+  const teacher   = allTeachers.find(t => t['이름'] === name);
+
+  if (!isAdmin && !teacher) {
+    showLoginError(`"${name}" 선생님을 명단에서 찾을 수 없습니다.\n이름을 다시 확인해 주세요.`);
     return;
   }
 
-  // 일반 교사: 교사명단에서 검색
-  const teacher = allTeachers.find(t => t['이름'] === name);
-  if (!teacher) {
-    showLoginError(`"${name}" 선생님을 명단에서 찾을 수 없습니다.
-이름을 다시 확인해 주세요.`);
-    return;
+  // 역할 힌트 텍스트
+  let roleHint = '비밀번호를 입력하세요  (초기: 1234)';
+  if (isAdmin) roleHint = '🔑 교역자 · 비밀번호를 입력하세요';
+  else if (teacher) {
+    const r = getTeacherRole(teacher);
+    roleHint = r === 'leadership' ? '⭐ 리더십' :
+               r === 'newbie_teacher' ? '🌱 새친구교사' : '📋 담임교사';
+    roleHint += ' · 비밀번호를 입력하세요  (초기: 1234)';
   }
 
-  currentUser = {
-    name:       teacher['이름'],
-    role:       getTeacherRole(teacher),
-    classGroup: teacher['담당 학년-반'] || '',
-    teacherObj: teacher
-  };
-  completeLogin();
+  document.getElementById('loginStep1').style.display = 'none';
+  document.getElementById('loginStep2').style.display = 'block';
+  document.getElementById('loginNameDisplay').textContent = name;
+  document.getElementById('loginAvatar').textContent = name.charAt(0);
+  document.getElementById('loginRoleHint').textContent = roleHint;
+  document.getElementById('loginSubtitle').textContent = '비밀번호 입력';
+  setTimeout(() => document.getElementById('loginPw').focus(), 100);
 }
 
-// ── STEP 2: 교역자 비밀번호 확인 ────────────────────────────
-function doAdminLoginWithPw() {
+// ── STEP 2: 비밀번호 확인 (전체 사용자 공통) ────────────────
+function doLoginWithPw() {
   clearLoginError();
   const name = document.getElementById('loginName').value.trim();
   const pw   = document.getElementById('loginPw').value;
 
   if (!pw) { showLoginError('비밀번호를 입력해주세요.'); return; }
 
-  if (!verifyAdminPassword(pw)) {
+  if (!verifyUserPassword(name, pw)) {
     showLoginError('비밀번호가 올바르지 않습니다.');
     document.getElementById('loginPw').value = '';
     document.getElementById('loginPw').focus();
     return;
   }
 
-  // 비밀번호 맞음 → 교역자 로그인
-  // 교사명단에 있으면 teacherObj도 연결
+  // 비밀번호 일치 → 역할 결정 후 로그인
+  const isAdmin = isAdminName(name);
   const teacher = allTeachers.find(t => t['이름'] === name);
-  currentUser = {
-    name,
-    role: 'admin',
-    classGroup: teacher ? (teacher['담당 학년-반'] || '') : '',
-    teacherObj: teacher || null
-  };
+
+  if (isAdmin) {
+    currentUser = {
+      name, role: 'admin',
+      classGroup: teacher ? (teacher['담당 학년-반'] || '') : '',
+      teacherObj: teacher || null
+    };
+  } else {
+    currentUser = {
+      name: teacher['이름'],
+      role: getTeacherRole(teacher),
+      classGroup: teacher['담당 학년-반'] || '',
+      teacherObj: teacher
+    };
+  }
   completeLogin();
 }
 
@@ -2089,24 +2105,26 @@ function togglePwVisible() {
   else { inp.type = 'password'; btn.textContent = '👁'; }
 }
 
-// 비밀번호 변경 모달 (교역자 전용)
+// ── 비밀번호 변경 모달 (전체 사용자) ────────────────────────
 function openChangePwModal() {
-  const modal = document.getElementById('changePwModal');
+  let modal = document.getElementById('changePwModal');
   if (!modal) {
-    // 모달이 없으면 동적 생성
     const div = document.createElement('div');
     div.className = 'modal-backdrop';
     div.id = 'changePwModal';
     div.innerHTML = `
       <div class="modal" style="max-width:340px;">
         <div class="modal-header">
-          <div class="modal-title">🔑 비밀번호 변경</div>
+          <div class="modal-title">🔑 내 비밀번호 변경</div>
           <button class="modal-close" onclick="closeModal('changePwModal')">✕</button>
         </div>
         <div class="modal-body" style="display:grid;gap:12px;">
+          <div style="font-size:.82rem;color:var(--gray-500);padding:8px 10px;background:var(--gray-50);border-radius:8px;">
+            👤 <b id="pwModalName"></b> 님의 비밀번호를 변경합니다.
+          </div>
           <div class="form-group">
             <label class="form-label">현재 비밀번호</label>
-            <input class="form-control" id="pwCurrent" type="password" placeholder="현재 비밀번호">
+            <input class="form-control" id="pwCurrent" type="password" placeholder="현재 비밀번호 (초기: 1234)">
           </div>
           <div class="form-group">
             <label class="form-label">새 비밀번호</label>
@@ -2124,7 +2142,9 @@ function openChangePwModal() {
         </div>
       </div>`;
     document.body.appendChild(div);
+    modal = div;
   }
+  document.getElementById('pwModalName').textContent = currentUser ? currentUser.name : '';
   document.getElementById('pwCurrent').value = '';
   document.getElementById('pwNew').value = '';
   document.getElementById('pwConfirm').value = '';
@@ -2133,20 +2153,20 @@ function openChangePwModal() {
 }
 
 function submitChangePw() {
+  const name    = currentUser ? currentUser.name : '';
   const cur     = document.getElementById('pwCurrent').value;
   const nw      = document.getElementById('pwNew').value;
   const confirm = document.getElementById('pwConfirm').value;
   const errEl   = document.getElementById('pwChangeError');
-
   const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
 
-  if (!verifyAdminPassword(cur)) { showErr('현재 비밀번호가 올바르지 않습니다.'); return; }
-  if (nw.length < 4) { showErr('새 비밀번호는 4자 이상이어야 합니다.'); return; }
-  if (nw !== confirm) { showErr('새 비밀번호가 일치하지 않습니다.'); return; }
+  if (!verifyUserPassword(name, cur)) { showErr('현재 비밀번호가 올바르지 않습니다.'); return; }
+  if (nw.length < 4)                   { showErr('새 비밀번호는 4자 이상이어야 합니다.'); return; }
+  if (nw !== confirm)                  { showErr('새 비밀번호가 일치하지 않습니다.'); return; }
 
-  setAdminPassword(nw);
+  setUserPassword(name, nw);
   closeModal('changePwModal');
-  showToast('비밀번호가 변경되었습니다.', 'success');
+  showToast('✅ 비밀번호가 변경되었습니다!', 'success');
 }
 
 function showLoginError(msg) {
@@ -2210,12 +2230,16 @@ function updateUserChip() {
   document.getElementById('userRoleBadge').textContent =
     isAdmin  ? '🔑 교역자' :
     isNewbie ? '🌱 새친구교사' :
-    isLeader ? '⭐ 리더십' :
-               `📋 ${currentUser.classGroup || '담임'}`;
+    isLeader ? '⭐ 리더십' : (() => {
+      const role = currentUser.teacherObj ? (currentUser.teacherObj['구분'] || '') : '';
+      const emoji = role.includes('부담임') ? '📋 부담임' : '📋 담임';
+      const cls   = currentUser.classGroup || '';
+      return cls ? `${emoji} · ${cls}` : emoji;
+    })();
 
-  // 교역자에게만 비밀번호 변경 버튼 표시
+  // 모든 로그인 사용자에게 비밀번호 변경 버튼 표시
   const pwBtn = document.getElementById('changePwBtn');
-  if (pwBtn) pwBtn.style.display = isAdmin ? 'flex' : 'none';
+  if (pwBtn) pwBtn.style.display = 'flex';
 }
 
 function doLogout() {
@@ -2786,16 +2810,28 @@ function setupAttendanceDateSelect() {
       allClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
     classEl.removeAttribute('disabled');
   } else {
-    const myClass = currentUser ? currentUser.classGroup : '';
-    const myClasses = allClasses.filter(c => c === myClass);
+    // 교사(담임·부담임 포함): 담당 학년-반 목록 구성
+    // 쉼표 구분 다반 지원 (예: "중1-1반,중1-2반")
+    const rawClass = currentUser ? (currentUser.classGroup || '') : '';
+    const myClasses = rawClass
+      ? rawClass.split(',').map(c => c.trim()).filter(c => c && allClasses.includes(c))
+      : [];
+    const fallback  = rawClass || '담당반 없음';
+
     if (!myClasses.length) {
-      classEl.innerHTML = `<option value="${myClass}">${myClass || '담당반 없음'}</option>`;
+      classEl.innerHTML = `<option value="${fallback}">${fallback}</option>`;
+      classEl.value = fallback;
+    } else if (myClasses.length === 1) {
+      classEl.innerHTML = `<option value="${myClasses[0]}">${myClasses[0]}</option>`;
+      classEl.value = myClasses[0];
     } else {
+      // 복수 반 담당인 경우 선택 가능하게
       classEl.innerHTML = myClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+      classEl.value = myClasses[0];
+      classEl.removeAttribute('disabled');
     }
-    classEl.value = myClass;
-    classEl.setAttribute('disabled', 'disabled');
-    renderAttLockBanner(myClass);
+    if (myClasses.length <= 1) classEl.setAttribute('disabled', 'disabled');
+    renderAttLockBanner(myClasses.length ? myClasses.join(', ') : fallback);
   }
 
   // 이벤트 리스너 (중복 방지를 위해 새 엘리먼트로 교체)
@@ -2811,8 +2847,11 @@ function setupAttendanceDateSelect() {
     loadAttendance();
   });
 
-  // 교사인 경우 담당 반 자동 로드
-  if (!isAdmin && currentUser && currentUser.classGroup) {
+  // 교사(담임·부담임)인 경우 담당 반 자동 로드
+  if (!isAdmin && !isLeadership && currentUser && currentUser.classGroup) {
+    autoSelectNearestSunday();
+    loadAttendance();
+  } else if (isLeadership) {
     autoSelectNearestSunday();
     loadAttendance();
   }
@@ -3556,7 +3595,7 @@ function renderTeacherRecords() {
     return;
   }
   const TOP_ROLES = ['\uad50\uc5ed\uc790','\ubaa9\uc0ac','\uc804\ub3c4\uc0ac','\ubd80\uc7a5','\ub9ac\ub354\uc2ed'];
-  const FILTER_ROLES = ['\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300'];
+  const FILTER_ROLES = ['\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300','\uc6cc\uc2ed\ud300','\uc0ac\uc5ed\ud300'];
   function isTop(t) { return (t['\uad6c\ubd84']||'').split(',').map(r=>r.trim()).some(r=>TOP_ROLES.includes(r)); }
   const anyChecked = FILTER_ROLES.some(r => _teacherRoleFilter.has(r));
   if (anyChecked) {
@@ -3603,7 +3642,7 @@ function _renderTeacherCard(t) {
 
 function _buildTeacherSortBar(anyChecked) {
   const lbl = TEACHER_SORT_LABELS[teacherSortKey] || '\uae30\ubcf8\uc21c';
-  const FILTER_ROLES = ['\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300'];
+  const FILTER_ROLES = ['\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300','\uc6cc\uc2ed\ud300','\uc0ac\uc5ed\ud300'];
   const clearHtml = anyChecked ? '<span onclick="_teacherRoleFilter.clear();renderTeacherRecords();event.stopPropagation();" style="font-size:.67rem;color:var(--primary);cursor:pointer;font-weight:700;margin-left:auto;">\uc804\uccb4\ud574\uc81c</span>' : '';
   const mkCheck = (key, label) => {
     const op = teacherSortKey === key ? 1 : 0;
