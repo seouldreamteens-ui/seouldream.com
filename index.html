@@ -60,24 +60,28 @@ header{
   white-space:nowrap;
 }
 .brand-icon{font-size:1.4rem;}
+/* 헤더 검색창: 두 번째 줄 전체 너비 */
 .header-search-wrap{
-  flex:1;max-width:340px;position:relative;
+  position:relative;
+  margin-top:10px;
 }
 .header-search{
   display:flex;align-items:center;
   background:rgba(255,255,255,.2);
   border:1.5px solid rgba(255,255,255,.35);
   border-radius:50px;
-  padding:6px 14px;gap:8px;
+  padding:8px 16px;gap:8px;
   transition:background .2s;
+  width:100%;
+  box-sizing:border-box;
 }
 .header-search:focus-within{background:rgba(255,255,255,.3);}
 .header-search input{
   background:none;border:none;outline:none;
-  color:#fff;font-size:.9rem;font-family:var(--font-main);
+  color:#fff;font-size:.92rem;font-family:var(--font-main);
   width:100%;
 }
-.header-search input::placeholder{color:rgba(255,255,255,.7);}
+.header-search input::placeholder{color:rgba(255,255,255,.75);}
 
 /* 검색 드롭다운 결과 */
 .search-dropdown{
@@ -190,6 +194,31 @@ header{
 .att-stats-rate{font-weight:700;color:var(--primary);}
 .att-stats-rate.low{color:var(--danger);}
 .att-stats-rate.mid{color:var(--accent);}
+.attstat-table{
+  width:100%;border-collapse:collapse;font-size:.78rem;min-width:320px;
+}
+.attstat-table th{
+  background:var(--primary);color:#fff;padding:7px 8px;
+  text-align:center;font-weight:700;white-space:nowrap;
+  position:sticky;top:0;z-index:2;
+}
+.attstat-table th:first-child{position:sticky;left:0;z-index:3;background:var(--primary);}
+.attstat-table td{
+  padding:7px 8px;text-align:center;
+  border-bottom:1px solid var(--gray-100);white-space:nowrap;
+}
+.attstat-table td:first-child{
+  font-weight:700;text-align:left;
+  position:sticky;left:0;background:#fff;z-index:1;
+  border-right:1px solid var(--gray-100);max-width:90px;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.attstat-table tr:nth-child(even) td{background:var(--gray-50);}
+.attstat-table tr:nth-child(even) td:first-child{background:var(--gray-50);}
+.att-o{color:#16A34A;font-weight:700;font-size:.85rem;}
+.att-x{color:#DC2626;font-weight:700;font-size:.8rem;}
+.att-empty{color:var(--gray-300);}
+.attstat-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--gray-100);}
 .filter-tag{
   font-size:.72rem;padding:4px 10px;border-radius:50px;
   background:var(--gray-100);border:1.5px solid var(--gray-200);
@@ -909,14 +938,6 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div class="brand" onclick="goHome()" style="cursor:pointer;user-select:none;">
       <span class="brand-icon">✝️</span> 드림틴즈 교적관리
     </div>
-    <div class="header-search-wrap" id="searchWrap">
-      <div class="header-search">
-        <span>🔍</span>
-        <input type="text" id="globalSearch" placeholder="이름으로 검색..." autocomplete="off">
-        <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()">✕</button>
-      </div>
-      <div class="search-dropdown" id="searchDropdown"></div>
-    </div>
     <div class="user-chip" id="userChip" title="메뉴">
       <div class="u-avatar" id="userAvatar" onclick="doLogout()" title="로그아웃">?</div>
       <div onclick="doLogout()" title="로그아웃">
@@ -928,6 +949,15 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         🔑 PW
       </button>
     </div>
+  </div>
+  <!-- 검색창: 브랜드 타이틀 아래 전체 너비 -->
+  <div class="header-search-wrap" id="searchWrap">
+    <div class="header-search">
+      <span style="font-size:1rem;">🔍</span>
+      <input type="text" id="globalSearch" placeholder="이름, 연락처로 검색..." autocomplete="off">
+      <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()">✕</button>
+    </div>
+    <div class="search-dropdown" id="searchDropdown"></div>
   </div>
 </header>
 
@@ -1228,6 +1258,25 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div id="newbieList"></div>
   </section>
 
+  <!-- 출석현황 -->
+  <section class="view" id="view-attstat">
+    <!-- 교역자: 학생/교사 탭 선택 -->
+    <div id="attstatTabBar" style="display:none;margin-bottom:12px;background:var(--gray-100);padding:3px;border-radius:50px;display:flex;gap:4px;">
+      <button class="sort-tab active" id="attstatTabStudent" onclick="setAttstatMode('student')" style="flex:1;border-radius:50px;font-size:.8rem;">👨‍🎓 학생 출석현황</button>
+      <button class="sort-tab" id="attstatTabTeacher" onclick="setAttstatMode('teacher')" style="flex:1;border-radius:50px;font-size:.8rem;">👨‍🏫 교사 출석현황</button>
+    </div>
+    <!-- 반 선택 (교역자·교사용) -->
+    <div id="attstatClassBar" style="display:none;margin-bottom:10px;">
+      <select class="form-control" id="attstatClass" onchange="renderAttstatTable()" style="font-size:.85rem;">
+        <option value="">반 선택</option>
+      </select>
+    </div>
+    <!-- 테이블 영역 -->
+    <div id="attstatContent" style="overflow-x:auto;">
+      <div class="empty" style="padding:40px 0;"><div class="empty-icon">📊</div>출석현황을 불러오는 중...</div>
+    </div>
+  </section>
+
   <!-- 교적 관리 -->
   <section class="view" id="view-records">
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
@@ -1302,6 +1351,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   </button>
   <button class="nav-btn" data-view="attendance">
     <span class="icon">✅</span>출석체크
+  </button>
+  <button class="nav-btn" data-view="attstat">
+    <span class="icon">📊</span>출석현황
   </button>
   <button class="nav-btn" data-view="newbie">
     <span class="icon">🌱</span>새친구
@@ -1543,10 +1595,10 @@ function getTeacherRole(teacher) {
 
 // 역할별 허용 탭
 const ROLE_TABS = {
-  admin:          ['dashboard','attendance','newbie','records'],
-  leadership:     ['dashboard','attendance','records'],
-  teacher:        ['dashboard','attendance'],
-  newbie_teacher: ['dashboard','newbie'],
+  admin:          ['dashboard','attendance','attstat','newbie','records'],
+  leadership:     ['dashboard','attendance','attstat','records'],
+  teacher:        ['dashboard','attendance','attstat'],
+  newbie_teacher: ['dashboard','newbie','attstat'],
 };
 
 // 새친구 정렬 상태
@@ -1908,6 +1960,46 @@ function getDemoData(action, payload) {
             .forEach(r => history.push({ date: k.slice(0,10), status: r.status, reason: r.reason||'' }));
         });
       return { success: true, data: history.slice(0, weeks) };
+    }
+
+    case 'getAttendanceTable': {
+      const mode   = payload.mode || 'student';
+      const filter = payload.classFilter || '';
+      const sundays = getSundays2026().slice(0, 10); // 최근 10주
+
+      if (mode === 'teacher') {
+        const rows = _demo.teachers.map(t => ({
+          id: t['교사ID'], name: t['이름'], cls: t['담당 학년-반']||'',
+          values: {}
+        }));
+        // 저장된 출석 데이터 적용
+        sundays.forEach(d => {
+          const key = `${d}___teachers__`;
+          const saved = _demo.attendance[`${d}___teachers__`] || [];
+          rows.forEach(row => {
+            const rec = saved.find(r => r.studentId === row.id);
+            if (rec) row.values[d] = rec.status === '출석' ? 'o' : (rec.status === '결석' ? ('결석'+(rec.reason?`(${rec.reason})`:'')) : '');
+          });
+        });
+        return { success: true, data: { dates: sundays, rows } };
+      }
+
+      // 학생 모드
+      let students = _demo.students.filter(s => ['등록','심방필요'].includes(s['상태']));
+      if (filter) students = students.filter(s => s['학년-반'] === filter);
+      const rows = students.map(s => ({
+        id: s['학생ID'], name: s['이름'], cls: filter ? '' : s['학년-반'],
+        values: {}
+      }));
+      sundays.forEach(d => {
+        const cls = filter || '__all__';
+        const key = `${d}_${filter}`;
+        (_demo.attendance[key] || []).forEach(rec => {
+          const row = rows.find(r => r.id === rec.studentId);
+          if (row) row.values[d] = rec.status === '출석' ? 'o' : (rec.status === '결석' ? ('결석'+(rec.reason?`(${rec.reason})`:'')) : '');
+        });
+      });
+      return { success: true, data: { dates: sundays, rows } };
     }
 
     case 'getAttendanceStats': {
@@ -2913,7 +3005,7 @@ function setupAttendanceDateSelect() {
     if (c.startsWith('고3')) return '7_' + c;
     return '9_' + c;
   }
-  const validSt = ['등록','심방필요','장결자'];
+  const validSt = ['등록','심방필요'];  // 장결자·유학중 출석목록 제외
   const allClasses = [...new Set(allStudents.filter(s=>validSt.includes(s['상태'])).map(s=>s['학년-반']))]
     .sort((a,b)=>classOrder(a).localeCompare(classOrder(b)));
 
@@ -3044,16 +3136,22 @@ async function loadAttendance() {
 
   document.getElementById('attList').innerHTML = `<div class="loading"><div class="spinner"></div><span>불러오는 중...</span></div>`;
 
-  // 리더십 모드: 교사 목록으로 출석체크
+  // 리더십 모드: 교사 목록으로 출석체크 (이전 저장값 포함)
   if (cls === '__teachers__') {
+    const r2 = await callGAS('getAttendance', {classGroup:'__teachers__', date});
     currentAttRecords = {};
+    const attMap = {};
+    if (r2.success && r2.data && r2.data.students) {
+      r2.data.students.forEach(s => { attMap[s.studentId] = s; });
+    }
     allTeachers.forEach(t => {
+      const prev = attMap[t['교사ID']];
       currentAttRecords[t['교사ID']] = {
         studentId: t['교사ID'],
         name: t['이름'],
         classGroup: '__teachers__',
-        status: '미체크',
-        reason: '',
+        status: prev ? prev.status : '미체크',
+        reason: prev ? prev.reason : '',
         _isTeacher: true,
         _role: t['구분'],
         _class: t['담당 학년-반'] || '',
@@ -3068,9 +3166,12 @@ async function loadAttendance() {
 
   currentAttRecords = {};
   r.data.students.forEach(s => {
-    // 장결자 / 유학중 학생은 출석체크 목록에서 제외
+    // 장결자 / 유학중 / 유학 학생은 출석체크 목록에서 제외
+    // allStudents에서 최신 상태 확인 (서버 응답값보다 우선)
     const stu = allStudents.find(st => st['학생ID'] === s.studentId);
-    if (stu && (stu['상태'] === '장결자' || stu['상태'] === '유학중' || stu['상태'] === '유학')) return;
+    const status = stu ? stu['상태'] : (s.status || '');
+    const excluded = ['장결자','유학중','유학'];
+    if (excluded.includes(status)) return;
     currentAttRecords[s.studentId] = { ...s };
   });
   renderAttList();
@@ -3131,7 +3232,7 @@ async function saveAttendance() {
 
   // 교사 출석체크는 상태 자동변경 없음
   if (cls === '__teachers__') {
-    showToast('교사 출석이 저장되었습니다.', 'success');
+    showToast('✅ 교사 출석 저장되었습니다.', 'success');
     await loadStudents();
     renderDashboard();
     await loadAttendanceStats();
@@ -3184,9 +3285,9 @@ async function saveAttendance() {
   // ── 결과 알림 ────────────────────────────────────────
   if (statusChanges.length > 0) {
     const msg = statusChanges.map(c=>`${c.name} → ${c.newStatus}`).join(', ');
-    showToast(`저장 완료 · 상태 변경: ${msg}`, 'success');
+    showToast(`✅ 출석 저장되었습니다. (상태 변경: ${msg})`, 'success');
   } else {
-    showToast('출석이 저장되었습니다.', 'success');
+    showToast('✅ 출석 저장되었습니다.', 'success');
   }
 
   await loadStudents();
@@ -3223,6 +3324,137 @@ async function loadAttendanceStats() {
   const r = await callGAS('getAttendanceStats', {});
   if (!r.success) return;
   renderAttendanceStats(r.data);
+}
+
+// ══════════════════════════════════════════
+// 출석현황 탭 로직
+// ══════════════════════════════════════════
+let _attstatMode = 'student'; // 'student' | 'teacher'
+let _attstatData = null;      // { headers, rows, dates }
+
+async function initAttstatView() {
+  const role = currentUser ? currentUser.role : '';
+  const isAdmin      = role === 'admin';
+  const isLeadership = role === 'leadership';
+  const isTeacher    = role === 'teacher';
+  const isNewbieT    = role === 'newbie_teacher';
+
+  // 교역자: 학생/교사 탭 표시
+  const tabBar = document.getElementById('attstatTabBar');
+  if (tabBar) tabBar.style.display = isAdmin ? 'flex' : 'none';
+
+  // 반 선택 바 (교역자·교사)
+  const classBar = document.getElementById('attstatClassBar');
+  const classEl  = document.getElementById('attstatClass');
+
+  if (isAdmin) {
+    _attstatMode = 'student';
+    setAttstatMode('student');
+  } else if (isLeadership) {
+    _attstatMode = 'teacher';
+    if (classBar) classBar.style.display = 'none';
+    await _loadAttstatData('__teachers__');
+  } else {
+    // 교사: 담당 반 고정
+    _attstatMode = 'student';
+    if (classBar) classBar.style.display = 'none';
+    const myClass = currentUser.classGroup || '';
+    if (myClass) {
+      await _loadAttstatData(myClass);
+    } else {
+      document.getElementById('attstatContent').innerHTML =
+        '<div class="empty"><div class="empty-icon">📋</div>담당 반이 없습니다.</div>';
+    }
+  }
+}
+
+async function setAttstatMode(mode) {
+  _attstatMode = mode;
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  document.getElementById('attstatTabStudent').classList.toggle('active', mode === 'student');
+  document.getElementById('attstatTabTeacher').classList.toggle('active', mode === 'teacher');
+
+  const classBar = document.getElementById('attstatClassBar');
+  const classEl  = document.getElementById('attstatClass');
+
+  if (mode === 'teacher') {
+    if (classBar) classBar.style.display = 'none';
+    await _loadAttstatData('__teachers__');
+  } else {
+    // 학생 모드: 반 선택
+    if (classBar && isAdmin) classBar.style.display = 'block';
+    // 반 목록 빌드
+    const validSt = ['등록','심방필요'];
+    const classes = [...new Set(allStudents.filter(s=>validSt.includes(s['상태'])).map(s=>s['학년-반']))]
+      .sort((a,b)=>_attstatClassOrder(a).localeCompare(_attstatClassOrder(b)));
+    if (classEl) {
+      classEl.innerHTML = '<option value="">전체 (반별)</option>' +
+        classes.map(c=>`<option value="${c}">${c}</option>`).join('');
+    }
+    await _loadAttstatData(classEl ? classEl.value : '');
+  }
+}
+
+function _attstatClassOrder(c) {
+  const order = ['초6','중1','중2','중3','고1','고2','고3'];
+  for (let i=0;i<order.length;i++) if (c.startsWith(order[i])) return String(i).padStart(2,'0')+'_'+c;
+  return '99_'+c;
+}
+
+async function renderAttstatTable() {
+  const classEl = document.getElementById('attstatClass');
+  await _loadAttstatData(classEl ? classEl.value : '');
+}
+
+async function _loadAttstatData(classFilter) {
+  const el = document.getElementById('attstatContent');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div><span>불러오는 중...</span></div>';
+
+  const r = await callGAS('getAttendanceTable', { classFilter, mode: _attstatMode });
+  if (!r.success) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div>${r.message||'데이터 오류'}</div>`;
+    return;
+  }
+  _renderAttstatGrid(r.data);
+}
+
+function _renderAttstatGrid(data) {
+  const el = document.getElementById('attstatContent');
+  if (!data || !data.rows || !data.rows.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div>출석 기록이 없습니다.</div>';
+    return;
+  }
+
+  const { dates, rows } = data;
+  // 날짜 포맷: YYYY-MM-DD → M/D
+  function fmtDate(d) {
+    const parts = String(d).split('-');
+    if (parts.length===3) return parseInt(parts[1])+'/'+parseInt(parts[2]);
+    return d;
+  }
+
+  let html = '<div class="attstat-wrap"><table class="attstat-table"><thead><tr>';
+  html += '<th style="min-width:72px;">이름</th>';
+  dates.forEach(d => { html += `<th>${fmtDate(d)}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  rows.forEach(row => {
+    html += '<tr>';
+    html += `<td title="${row.name}">${row.name}${row.cls ? '<br><span style="font-size:.65rem;color:var(--gray-400);">'+row.cls+'</span>' : ''}</td>`;
+    dates.forEach(d => {
+      const v = row.values[d] || '';
+      if (v === 'o') html += '<td class="att-o">○</td>';
+      else if (v && v.startsWith('결석')) {
+        const reason = v.match(/\((.+)\)/);
+        html += `<td class="att-x" title="${reason?reason[1]:'결석'}">✕</td>`;
+      }
+      else html += '<td class="att-empty">-</td>';
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
 }
 
 function renderAttendanceStats(stats) {
@@ -4255,6 +4487,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     const viewId = 'view-' + btn.dataset.view;
     document.getElementById(viewId).classList.add('active');
     if (btn.dataset.view === 'newbie') renderNewbieList();
+    if (btn.dataset.view === 'attstat') initAttstatView();
     if (btn.dataset.view === 'records') switchRecordTab(currentRecordTab || 'students');
     if (btn.dataset.view === 'attendance') loadAttendanceStats();
   });
