@@ -1529,7 +1529,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbym1D_PT7y_FMU-YB558pKcneLmlVD7-VYaNewnNpf-ycI7LD5qYDRQxKzTWO4GNt7zJQ/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_o2KcpREvZuZBls9OLhLTa3m7szqjtK5R7wuToPLBrxf6UK9r7QTVkCmt92Rtl8jhFQ/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -1592,6 +1592,8 @@ const ROLE_TABS = {
 
 // 새친구 정렬 상태
 let newbieSortKey = 'name_asc'; // 'name_asc'|'name_desc'|'age_asc'|'age_desc'|'weeks_asc'|'weeks_desc'
+let _locallyModified = new Set(); // 사용자가 직접 수정한 학생 ID (폴링 시 덮어쓰기 방지)
+let _pollInterval = null;          // 실시간 폴링 interval 핸들
 
 // ══════════════════════════════════════════
 // GAS 통신
@@ -3123,12 +3125,16 @@ function formatDateFull(d) {
   return y + '년 ' + m + '월 ' + day + '일 (' + days[dt.getDay()] + ')';
 }
 
-async function loadAttendance() {
+async function loadAttendance(silentMerge = false) {
   const cls  = document.getElementById('attClass').value;
   const date = document.getElementById('attDate').value;
   if (!cls || !date) { document.getElementById('attList').innerHTML=''; return; }
 
-  document.getElementById('attList').innerHTML = `<div class="loading"><div class="spinner"></div><span>불러오는 중...</span></div>`;
+  if (!silentMerge) {
+    // 반/날짜 바뀐 경우: 로컬 수정 이력 초기화 + 로딩 표시
+    _locallyModified.clear();
+    document.getElementById('attList').innerHTML = `<div class="loading"><div class="spinner"></div><span>불러오는 중...</span></div>`;
+  }
 
   // 리더십 모드: 교사 목록으로 출석체크 (이전 저장값 포함)
   if (cls === '__teachers__') {
@@ -3158,16 +3164,27 @@ async function loadAttendance() {
   const r = await callGAS('getAttendance', {classGroup:cls, date});
   if (!r.success) { showToast(r.message,'error'); return; }
 
-  currentAttRecords = {};
-  r.data.students.forEach(s => {
-    // 장결자 / 유학중 / 유학 학생은 출석체크 목록에서 제외
-    // allStudents에서 최신 상태 확인 (서버 응답값보다 우선)
-    const stu = allStudents.find(st => st['학생ID'] === s.studentId);
-    const status = stu ? stu['상태'] : (s.status || '');
-    const excluded = ['장결자','유학중','유학'];
-    if (excluded.includes(status)) return;
-    currentAttRecords[s.studentId] = { ...s };
-  });
+  const excluded = ['장결자','유학중','유학'];
+
+  if (!silentMerge) {
+    // 최초 로드: 전부 교체
+    currentAttRecords = {};
+    r.data.students.forEach(s => {
+      const stu = allStudents.find(st => st['학생ID'] === s.studentId);
+      const status = stu ? stu['상태'] : (s.status || '');
+      if (excluded.includes(status)) return;
+      currentAttRecords[s.studentId] = { ...s };
+    });
+  } else {
+    // 실시간 폴링 머지: 로컬에서 수정하지 않은 항목만 갱신
+    r.data.students.forEach(s => {
+      const stu = allStudents.find(st => st['학생ID'] === s.studentId);
+      const status = stu ? stu['상태'] : (s.status || '');
+      if (excluded.includes(status)) return;
+      if (_locallyModified.has(s.studentId)) return; // 로컬 수정 우선
+      currentAttRecords[s.studentId] = { ...s };
+    });
+  }
   renderAttList();
 }
 
@@ -3214,10 +3231,26 @@ function renderAttList() {
 function setAtt(id, status) {
   currentAttRecords[id].status = status;
   if (status === '출석') currentAttRecords[id].reason = '';
+  _locallyModified.add(id); // 실시간 폴링 시 덮어쓰기 방지
   renderAttList();
 }
 function setReason(id, reason) {
   currentAttRecords[id].reason = reason;
+  _locallyModified.add(id);
+}
+
+// ── 실시간 출석 폴링 ──────────────────────────────────────────
+function startAttPoll() {
+  stopAttPoll(); // 기존 인터벌 정리
+  _pollInterval = setInterval(async () => {
+    const cls  = document.getElementById('attClass').value;
+    const date = document.getElementById('attDate').value;
+    if (!cls || !date || !currentAttRecords || !Object.keys(currentAttRecords).length) return;
+    await loadAttendance(true); // silentMerge=true
+  }, 15000); // 15초마다
+}
+function stopAttPoll() {
+  if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
 }
 function toggleNoteInput(id) {
   const wrap = document.getElementById('note-' + id);
@@ -3253,6 +3286,7 @@ async function saveAttendance() {
   // 교사 출석체크는 상태 자동변경 없음
   if (cls === '__teachers__') {
     showToast('✅ 교사 출석 저장되었습니다.', 'success');
+    _locallyModified.clear();
     await loadStudents();
     renderDashboard();
     await loadAttendanceStats();
@@ -3306,8 +3340,10 @@ async function saveAttendance() {
   if (statusChanges.length > 0) {
     const msg = statusChanges.map(c=>`${c.name} → ${c.newStatus}`).join(', ');
     showToast(`✅ 출석 저장되었습니다. (상태 변경: ${msg})`, 'success');
+    _locallyModified.clear();
   } else {
     showToast('✅ 출석 저장되었습니다.', 'success');
+    _locallyModified.clear();
   }
 
   await loadStudents();
@@ -4537,15 +4573,23 @@ function goHome() {
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     clearSearch();
+    const prevView = document.querySelector('.nav-btn.active');
+    // 이전 탭이 출석체크였으면 폴링 중지
+    if (prevView && prevView.dataset.view === 'attendance') stopAttPoll();
+
     document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     btn.classList.add('active');
     const viewId = 'view-' + btn.dataset.view;
     document.getElementById(viewId).classList.add('active');
+
     if (btn.dataset.view === 'newbie') renderNewbieList();
     if (btn.dataset.view === 'attstat') initAttstatView();
     if (btn.dataset.view === 'records') switchRecordTab(currentRecordTab || 'students');
-    if (btn.dataset.view === 'attendance') loadAttendanceStats();
+    if (btn.dataset.view === 'attendance') {
+      loadAttendanceStats();
+      startAttPoll(); // 출석체크 탭 진입 시 폴링 시작
+    }
   });
 });
 
