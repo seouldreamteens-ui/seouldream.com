@@ -1529,7 +1529,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_o2KcpREvZuZBls9OLhLTa3m7szqjtK5R7wuToPLBrxf6UK9r7QTVkCmt92Rtl8jhFQ/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
+const GAS_URL = '1V0cCIPqaxyEyzaLL_rUMdFFWo65G0olzuuITdWGCDSg'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -2133,11 +2133,12 @@ function todayLocalStr() {
 
 function getSundays2026() {
   const sundays = [];
-  // 2026년 3월 1일은 일요일 - 출석 시작일
-  const d = new Date(2026, 2, 1); // month is 0-indexed, so 2 = March
-  while (d.getFullYear() === 2026) {
-    sundays.push(toLocalDateStr(d));
-    d.setDate(d.getDate() + 7);
+  // 2026년 3월 1일(일요일) 시작 ~ 2027년 2월 28일(일요일) 종료
+  const d     = new Date(2026, 2, 1);  // 2026-03-01
+  const end   = new Date(2027, 1, 28); // 2027-02-28
+  while (d <= end) {
+    if (d.getDay() === 0) sundays.push(toLocalDateStr(d));
+    d.setDate(d.getDate() + (d.getDay() === 0 ? 7 : 7 - d.getDay()));
   }
   return sundays;
 }
@@ -2399,6 +2400,7 @@ function doLogout() {
 async function init() {
   allSundays = getSundays2026();
   filterMonth = new Date().getMonth() + 1; // 이달 생일 기본 세팅
+  sermonWeekIdx = findNearestSundayIdx();   // 이번 주 말씀 초기 세팅
   await Promise.all([loadStudents(), loadTeachers(), loadNewbies()]);
   setupAttendanceDateSelect();
   renderDashboard();
@@ -2813,8 +2815,6 @@ function showStatusList(status) {
     modal.addEventListener('click', e => { if (e.target === modal) closeModal('statusListModal'); });
   }
 
-  document.getElementById('statusListTitle').textContent = title + ' · ' + students.length + '명';
-
   const GRADE_ORDER_STATUS = ['초6','중1','중2','중3','고1','고2','고3','영어반'];
   function gradeKey(cls) {
     if (!cls) return '99_기타';
@@ -2825,24 +2825,74 @@ function showStatusList(status) {
   }
   const sorted = [...students].sort((a,b) => gradeKey(a['학년-반']).localeCompare(gradeKey(b['학년-반'])));
 
-  if (!sorted.length) {
-    document.getElementById('statusListBody').innerHTML = '<div class="empty"><div class="empty-icon">😊</div>해당 학생이 없습니다.</div>';
-  } else {
-    document.getElementById('statusListBody').innerHTML = sorted.map(s => `
+  function _renderStatusList(list) {
+    const body = document.getElementById('statusListBody');
+    if (!list.length) {
+      body.innerHTML = '<div class="empty"><div class="empty-icon">😊</div>해당 학생이 없습니다.</div>';
+      return;
+    }
+    body.innerHTML = list.map(s => {
+      // 나이 계산
+      let age = s['나이'] || '';
+      if (!age && s['생년월일']) {
+        const bd = String(s['생년월일']).replace(/\s/g,'');
+        if (/^\d{6}$/.test(bd)) {
+          const yy=parseInt(bd.slice(0,2)),mm=parseInt(bd.slice(2,4)),dd=parseInt(bd.slice(4,6));
+          const fy=yy<=(new Date().getFullYear()%100)?2000+yy:1900+yy;
+          let a=new Date().getFullYear()-fy;
+          if(new Date()<new Date(new Date().getFullYear(),mm-1,dd))a--;
+          age=a;
+        }
+      }
+      return `
       <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-100);">
-        <div style="width:34px;height:34px;border-radius:50%;background:var(--primary-lt);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary);font-size:.85rem;">
-          ${s['이름'].charAt(0)}
-        </div>
+        <div style="width:34px;height:34px;border-radius:50%;background:var(--primary-lt);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary);font-size:.85rem;">${s['이름'].charAt(0)}</div>
         <div style="flex:1;">
           <div style="font-weight:700;font-size:.88rem;">${s['이름']}
             <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;margin-left:4px;">${s['상태']}</span>
           </div>
-          <div style="font-size:.75rem;color:var(--gray-500);">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${s['나이']||'-'}세</div>
+          <div style="font-size:.75rem;color:var(--gray-500);">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${age||'-'}세</div>
         </div>
         <button class="btn btn-outline btn-sm" onclick="closeModal('statusListModal');showStudentDetail('${s['학생ID']}')">상세</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
+  let statusModal = document.getElementById('statusListModal');
+  if (!statusModal) {
+    statusModal = document.createElement('div');
+    statusModal.className = 'modal-backdrop';
+    statusModal.id = 'statusListModal';
+    document.body.appendChild(statusModal);
+    statusModal.addEventListener('click', e => { if (e.target === statusModal) closeModal('statusListModal'); });
+  }
+  statusModal.innerHTML = `
+    <div class="modal" style="max-width:420px;max-height:85vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <div class="modal-title" id="statusListTitle">${title} · ${sorted.length}명</div>
+        <button class="modal-close" onclick="closeModal('statusListModal')">✕</button>
+      </div>
+      <div style="padding:10px 16px 4px;">
+        <div class="header-search" style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:50px;padding:7px 14px;">
+          <span>🔍</span>
+          <input type="text" id="statusSearchInput" placeholder="이름으로 검색..."
+            style="background:none;border:none;outline:none;font-size:.88rem;width:100%;"
+            oninput="_filterStatusList(this.value)">
+        </div>
+      </div>
+      <div class="modal-body" id="statusListBody" style="overflow-y:auto;flex:1;"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" style="flex:1" onclick="closeModal('statusListModal')">닫기</button>
+      </div>
+    </div>`;
+
+  // 검색 필터
+  window._statusListStudents = sorted;
+  window._filterStatusList = function(q) {
+    const fil = q.trim() ? sorted.filter(s => s['이름'].includes(q.trim())) : sorted;
+    _renderStatusList(fil);
+  };
+  _renderStatusList(sorted);
   openModal('statusListModal');
 }
 
@@ -2918,42 +2968,68 @@ function renderStudentList() {
     return 0;
   }
 
+  // 학생 (장결자 포함)
   const birthdayStudents = allStudents.filter(s => getBdMonth(s['생년월일']) === m);
+  // 교사
+  const birthdayTeachers = allTeachers.filter(t => getBdMonth(t['생년월일']) === m);
 
-  if (!birthdayStudents.length) {
-    el.innerHTML = `<div class="empty" style="padding:16px 0;"><div class="empty-icon">🎂</div><div style="font-size:.82rem;color:var(--gray-400);">${m}월 생일인 학생이 없습니다.</div></div>`;
+  if (!birthdayStudents.length && !birthdayTeachers.length) {
+    el.innerHTML = `<div class="empty" style="padding:16px 0;"><div class="empty-icon">🎂</div><div style="font-size:.82rem;color:var(--gray-400);">${m}월 생일인 학생/교사가 없습니다.</div></div>`;
     return;
   }
 
-  // 학년 그룹핑
+  // 학년 그룹핑 (학생)
   const gradeGroups = {};
   birthdayStudents.forEach(s => {
     const cls = s['학년-반'] || '기타';
     const gradeKey = cls.replace(/-\d반$/, '').replace(/-\d+반$/, '') || '기타';
     if (!gradeGroups[gradeKey]) gradeGroups[gradeKey] = [];
-    gradeGroups[gradeKey].push(s['이름']);
+    // 장결자면 빨간색
+    const isAbsent = s['상태'] === '장결자';
+    gradeGroups[gradeKey].push({ name: s['이름'], absent: isAbsent });
   });
 
-  const gradeOrder = ['초6','중1','중2','중3','고1','고2','고3'];
+  const gradeOrder = ['초6','중1','중2','중3','고1','고2','고3','영어반'];
   const sortedGrades = Object.keys(gradeGroups).sort((a,b) => {
     const ai = gradeOrder.indexOf(a); const bi = gradeOrder.indexOf(b);
     return (ai<0?99:ai)-(bi<0?99:bi);
   });
 
-  // 콜아웃 스타일로 학년별 렌더링
-  el.innerHTML = sortedGrades.map(grade => {
-    const names = gradeGroups[grade];
+  let html = sortedGrades.map(grade => {
+    const persons = gradeGroups[grade];
     const rows = [];
-    for (let i = 0; i < names.length; i += 5) rows.push(names.slice(i, i+5));
+    for (let i = 0; i < persons.length; i += 5) rows.push(persons.slice(i, i+5));
     return `
       <div style="background:var(--primary-lt);border-left:3px solid var(--primary);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
         <div style="font-size:.72rem;font-weight:800;color:var(--primary);margin-bottom:7px;">🎂 ${grade}</div>
         ${rows.map(row => `
           <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;">
-            ${row.map(name => `<span style="font-size:.8rem;font-weight:600;background:#fff;color:var(--primary);padding:3px 9px;border-radius:50px;border:1px solid rgba(59,130,246,.2);">${name}</span>`).join('')}
+            ${row.map(p => {
+              const style = p.absent
+                ? 'background:#FEE2E2;color:#DC2626;border:1px solid #FCA5A5;'
+                : 'background:#fff;color:var(--primary);border:1px solid rgba(59,130,246,.2);';
+              const label = p.absent ? p.name + ' ⚠️' : p.name;
+              return `<span style="font-size:.8rem;font-weight:600;padding:3px 9px;border-radius:50px;${style}">${label}</span>`;
+            }).join('')}
           </div>`).join('')}
       </div>`;
   }).join('');
+
+  // 교사 섹션
+  if (birthdayTeachers.length) {
+    const tRows = [];
+    for (let i = 0; i < birthdayTeachers.length; i += 5) tRows.push(birthdayTeachers.slice(i, i+5));
+    html += `
+      <div style="background:#F3E8FF;border-left:3px solid #7C3AED;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
+        <div style="font-size:.72rem;font-weight:800;color:#7C3AED;margin-bottom:7px;">🎂 교사</div>
+        ${tRows.map(row => `
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;">
+            ${row.map(t => `<span style="font-size:.8rem;font-weight:600;background:#fff;color:#7C3AED;padding:3px 9px;border-radius:50px;border:1px solid rgba(124,58,237,.2);">${t['이름']}</span>`).join('')}
+          </div>`).join('')}
+      </div>`;
+  }
+
+  el.innerHTML = html;
 }
 
 function getBirthdayBadge(bd) {
@@ -3565,9 +3641,32 @@ function checkNewbieCompletion() {
     const done = [1,2,3,4].every(w => n[`${w}주차출결`] === '출석');
     return done && n['반배정완료여부'] !== 'TRUE';
   });
-  completed.forEach(n => {
-    showNewbieAlert(n['이름']);
-  });
+  if (completed.length > 0) {
+    // 상단 고정 알림 배너
+    const existBanner = document.getElementById('newbieReadyBanner');
+    if (!existBanner) {
+      const banner = document.createElement('div');
+      banner.id = 'newbieReadyBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#065F46,#047857);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 2px 12px rgba(0,0,0,.3);';
+      banner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:1.3rem;">🌱</span>
+          <div>
+            <div style="font-size:.88rem;font-weight:700;">반배정 필요 새친구 ${completed.length}명</div>
+            <div style="font-size:.75rem;opacity:.85;">${completed.map(n=>n['이름']).join(', ')}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="document.querySelector('.nav-btn[data-view=newbie]').click();document.getElementById('newbieReadyBanner').remove();"
+            style="background:rgba(255,255,255,.25);border:1.5px solid rgba(255,255,255,.5);color:#fff;border-radius:6px;padding:5px 12px;font-size:.78rem;cursor:pointer;font-weight:600;">
+            새친구 탭 이동
+          </button>
+          <button onclick="this.parentElement.parentElement.remove();" style="background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer;opacity:.7;">✕</button>
+        </div>`;
+      document.body.prepend(banner);
+    }
+  }
+  completed.forEach(n => { showNewbieAlert(n['이름']); });
 }
 
 function showNewbieAlert(name) {
