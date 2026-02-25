@@ -1529,7 +1529,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = '1V0cCIPqaxyEyzaLL_rUMdFFWo65G0olzuuITdWGCDSg'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwVMDuWha6fWR_QG3wzdlmY_jDRYEueHFDPp_1cF7S_j30vjcKukSYhtkE0iS5Td5ntYg/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -1599,27 +1599,30 @@ let _pollInterval = null;          // 실시간 폴링 interval 핸들
 // GAS 통신
 // ══════════════════════════════════════════
 function callGAS(action, payload = {}) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     // GAS_URL이 없으면 데모 데이터 사용
     if (!GAS_URL) {
       if (!window._gasWarnShown && action !== 'getSundays') {
         window._gasWarnShown = true;
-        setTimeout(() => showToast('⚠️ 데모 모드: 구글 시트 미연결. Index.html의 GAS_URL에 배포 URL을 입력하세요.', 'error'), 1200);
+        setTimeout(() => showToast('⚠️ 데모 모드: 구글 시트 미연결. GAS_URL을 입력하세요.', 'error'), 1200);
       }
       resolve(getDemoData(action, payload));
       return;
     }
-    // fetch 방식으로 GAS 웹앱 호출 (외부 호스팅 지원)
+    // GAS 웹앱 호출
     fetch(GAS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' }, // GAS CORS 우회
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action, payload })
     })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(data => resolve(data))
     .catch(e => {
-      console.error('GAS fetch 오류:', e);
-      // reject 대신 오류 응답으로 resolve → 앱이 멈추지 않음
+      console.error('GAS 연결 오류 (' + action + '):', e.message);
+      // 네트워크/CORS 오류 → 오류 결과 반환 (throw하지 않음)
       resolve({ success: false, message: 'GAS 연결 실패: ' + e.message });
     });
   });
@@ -2166,12 +2169,18 @@ async function checkLoginName() {
 
   // 교역자 또는 교사명단에 있는지 확인
   const isAdmin   = isAdminName(name);
-  // 구분이 교역자/목사/전도사/부장인 경우도 admin
-  const teacher   = allTeachers.find(t => t['이름'] === name);
+  // 이름 정규화 비교 (공백 제거)
+  const normName  = name.replace(/\s/g, '');
+  const teacher   = allTeachers.find(t => {
+    const tn = String(t['이름'] || '').replace(/\s/g, '');
+    return tn === normName;
+  });
   const isAdminByRole = teacher && hasRole(teacher, ADMIN_ROLES);
 
   if (!isAdmin && !isAdminByRole && !teacher) {
-    showLoginError(`"${name}" 선생님을 명단에서 찾을 수 없습니다.\n이름을 다시 확인해 주세요.`);
+    // GAS 연결 실패로 allTeachers가 비어있으면 교역자에게 힌트 제공
+    const hint = !allTeachers.length ? '\n(GAS 연결 확인 필요. 교역자는 ADMIN_NAMES에 이름 확인)' : '';
+    showLoginError(`"${name}" 선생님을 명단에서 찾을 수 없습니다.\n이름을 다시 확인해 주세요.${hint}`);
     return;
   }
 
@@ -2418,42 +2427,28 @@ async function init() {
   loadAttendanceStats();
 }
 
-async function loadStudents() {
+// ── GAS 연결 여부와 상관없이 데이터 로드 (실패 시 데모 폴백) ─
+async function _loadWithFallback(action, globalVar, setter) {
   try {
-    const r = await callGAS('getStudents');
-    if (r && r.success) allStudents = r.data;
-  } catch(e) {
-    console.warn('loadStudents 오류 (데모 모드 유지):', e);
-    if (!allStudents.length) {
-      const d = getDemoData('getStudents', {});
-      if (d.success) allStudents = d.data;
+    const r = await callGAS(action);
+    if (r && r.success && Array.isArray(r.data) && r.data.length > 0) {
+      setter(r.data);
+      return;
     }
+    // GAS 응답은 왔지만 success:false 또는 빈 배열 → 데모 폴백
+    console.warn(action + ' 응답 실패/빈 배열, 데모 데이터로 폴백:', r && r.message);
+  } catch(e) {
+    console.warn(action + ' 예외 발생, 데모 데이터로 폴백:', e);
+  }
+  // 폴백: 데모 데이터 사용
+  if (globalVar.length === 0) {
+    const d = getDemoData(action, {});
+    if (d.success) setter(d.data);
   }
 }
-async function loadTeachers() {
-  try {
-    const r = await callGAS('getTeachers');
-    if (r && r.success) allTeachers = r.data;
-  } catch(e) {
-    console.warn('loadTeachers 오류 (데모 모드 유지):', e);
-    if (!allTeachers.length) {
-      const d = getDemoData('getTeachers', {});
-      if (d.success) allTeachers = d.data;
-    }
-  }
-}
-async function loadNewbies() {
-  try {
-    const r = await callGAS('getNewbies');
-    if (r && r.success) allNewbies = r.data;
-  } catch(e) {
-    console.warn('loadNewbies 오류 (데모 모드 유지):', e);
-    if (!allNewbies.length) {
-      const d = getDemoData('getNewbies', {});
-      if (d.success) allNewbies = d.data;
-    }
-  }
-}
+async function loadStudents() { await _loadWithFallback('getStudents', allStudents, d => { allStudents = d; }); }
+async function loadTeachers() { await _loadWithFallback('getTeachers', allTeachers, d => { allTeachers = d; }); }
+async function loadNewbies()  { await _loadWithFallback('getNewbies',  allNewbies,  d => { allNewbies  = d; }); }
 
 
 // ══════════════════════════════════════════
@@ -5008,4 +5003,4 @@ document.addEventListener('click', e => {
 })();
 </script>
 </body>
-</html>
+</html>ㅁ
