@@ -986,7 +986,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   <section class="view active" id="view-dashboard">
 
     <!-- 통계 카드 -->
-    <div class="stat-grid" id="statsGrid" style="grid-template-columns:repeat(2,1fr);">
+    <div class="stat-grid" id="statsGrid" style="grid-template-columns:repeat(3,1fr);">
       <div class="stat-card"><div class="stat-num" id="statTotal">-</div><div class="stat-label">전체 학생</div></div>
       <div class="stat-card" onclick="showStatusList('등록')" style="cursor:pointer;" title="등록 학생 보기"><div class="stat-num" id="statActive" style="color:var(--success);">-</div><div class="stat-label">등록 ›</div></div>
       <div class="stat-card" onclick="showStatusList('새친구')" style="cursor:pointer;" title="새친구 보기"><div class="stat-num" id="statNewbie" style="color:var(--accent);">-</div><div class="stat-label">새친구 ›</div></div>
@@ -1617,7 +1617,11 @@ function callGAS(action, payload = {}) {
     })
     .then(r => r.json())
     .then(data => resolve(data))
-    .catch(e => reject(e));
+    .catch(e => {
+      console.error('GAS fetch 오류:', e);
+      // reject 대신 오류 응답으로 resolve → 앱이 멈추지 않음
+      resolve({ success: false, message: 'GAS 연결 실패: ' + e.message });
+    });
   });
 }
 
@@ -1674,7 +1678,7 @@ const _demo = {
     {학생ID:'S047',이름:'최예진',['학년-반']:'중1-2반',담임교사:'오선생',성별:'여',나이:13,생년월일:'121224',본인연락처:'',학부모연락처:'010-5047-6047',상태:'등록',주소:''},
     {학생ID:'S048',이름:'이수아',['학년-반']:'중1-2반',담임교사:'오선생',성별:'여',나이:13,생년월일:'120423',본인연락처:'',학부모연락처:'010-5048-6048',상태:'등록',주소:''},
     {학생ID:'S049',이름:'정하은',['학년-반']:'중1-2반',담임교사:'오선생',성별:'여',나이:13,생년월일:'120115',본인연락처:'',학부모연락처:'010-5049-6049',상태:'등록',주소:''},
-    {학생ID:'S050',이름:'김지유',['학년-반']:'중1-2반',담임교사:'오선생',성별:'여',나이:13,생년월일:'120309',본인연락처:'',학부모연락처:'010-5050-6050',상태:'등록',주소:''},
+    {학생ID:'S050',이름:'김지유',['학년-반']:'중1-2반',담임교사:'오선생',성별:'여',나이:13,생년월일:'120309',본인연락처:'',학부모연락처:'010-5050-6050',상태:'장결자',주소:''},
     {학생ID:'S051',이름:'강민재',['학년-반']:'중1-3반',담임교사:'최전도사',성별:'남',나이:13,생년월일:'120713',본인연락처:'',학부모연락처:'010-3051-4051',상태:'등록',주소:''},
     {학생ID:'S052',이름:'윤서준',['학년-반']:'중1-3반',담임교사:'최전도사',성별:'남',나이:13,생년월일:'121022',본인연락처:'',학부모연락처:'010-3052-4052',상태:'등록',주소:''},
     {학생ID:'S053',이름:'임현우',['학년-반']:'중1-3반',담임교사:'최전도사',성별:'남',나이:13,생년월일:'120612',본인연락처:'',학부모연락처:'010-3053-4053',상태:'등록',주소:''},
@@ -1699,7 +1703,7 @@ const _demo = {
     {학생ID:'S072',이름:'백민성',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'131205',본인연락처:'',학부모연락처:'010-3072-4072',상태:'등록',주소:''},
     {학생ID:'S073',이름:'송재현',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'130325',본인연락처:'',학부모연락처:'010-3073-4073',상태:'등록',주소:''},
     {학생ID:'S074',이름:'안재현',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'130220',본인연락처:'',학부모연락처:'010-3074-4074',상태:'등록',주소:''},
-    {학생ID:'S075',이름:'엄태준',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'131024',본인연락처:'',학부모연락처:'010-3075-4075',상태:'등록',주소:''},
+    {학생ID:'S075',이름:'엄태준',['학년-반']:'중2-2반',담임교사:'신선생',성별:'남',나이:14,생년월일:'131024',본인연락처:'',학부모연락처:'010-3075-4075',상태:'유학',주소:''},
     {학생ID:'S076',이름:'문하연',['학년-반']:'중2-2반',담임교사:'신선생',성별:'여',나이:14,생년월일:'130104',본인연락처:'',학부모연락처:'010-5076-6076',상태:'등록',주소:''},
     {학생ID:'S077',이름:'백지수',['학년-반']:'중2-2반',담임교사:'신선생',성별:'여',나이:14,생년월일:'130218',본인연락처:'',학부모연락처:'010-5077-6077',상태:'등록',주소:''},
     {학생ID:'S078',이름:'송아름',['학년-반']:'중2-2반',담임교사:'신선생',성별:'여',나이:14,생년월일:'130218',본인연락처:'',학부모연락처:'010-5078-6078',상태:'등록',주소:''},
@@ -1724,7 +1728,7 @@ const _demo = {
     {학생ID:'S097',이름:'강하린',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'141215',본인연락처:'',학부모연락처:'010-5097-6097',상태:'등록',주소:''},
     {학생ID:'S098',이름:'임수빈',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'141112',본인연락처:'',학부모연락처:'010-5098-6098',상태:'등록',주소:''},
     {학생ID:'S099',이름:'한지아',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'140813',본인연락처:'',학부모연락처:'010-5099-6099',상태:'등록',주소:''},
-    {학생ID:'S100',이름:'오세연',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'141027',본인연락처:'',학부모연락처:'010-5100-6100',상태:'등록',주소:''},
+    {학생ID:'S100',이름:'오세연',['학년-반']:'중3-1반',담임교사:'윤선생',성별:'여',나이:15,생년월일:'141027',본인연락처:'',학부모연락처:'010-5100-6100',상태:'장결자',주소:''},
     {학생ID:'S101',이름:'신태양',['학년-반']:'중3-2반',담임교사:'권선생',성별:'남',나이:15,생년월일:'140117',본인연락처:'',학부모연락처:'010-3101-4101',상태:'등록',주소:''},
     {학생ID:'S102',이름:'권도윤',['학년-반']:'중3-2반',담임교사:'권선생',성별:'남',나이:15,생년월일:'141007',본인연락처:'',학부모연락처:'010-3102-4102',상태:'등록',주소:''},
     {학생ID:'S103',이름:'황성민',['학년-반']:'중3-2반',담임교사:'권선생',성별:'남',나이:15,생년월일:'140219',본인연락처:'',학부모연락처:'010-3103-4103',상태:'등록',주소:''},
@@ -1749,7 +1753,7 @@ const _demo = {
     {학생ID:'S122',이름:'이도현',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'151025',본인연락처:'',학부모연락처:'010-3122-4122',상태:'등록',주소:''},
     {학생ID:'S123',이름:'박지후',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'150805',본인연락처:'',학부모연락처:'010-3123-4123',상태:'등록',주소:''},
     {학생ID:'S124',이름:'최준서',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'150528',본인연락처:'',학부모연락처:'010-3124-4124',상태:'등록',주소:''},
-    {학생ID:'S125',이름:'정우진',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'150816',본인연락처:'',학부모연락처:'010-3125-4125',상태:'등록',주소:''},
+    {학생ID:'S125',이름:'정우진',['학년-반']:'고1-1반',담임교사:'김목사',성별:'남',나이:16,생년월일:'150816',본인연락처:'',학부모연락처:'010-3125-4125',상태:'유학',주소:''},
     {학생ID:'S126',이름:'박서연',['학년-반']:'고1-1반',담임교사:'김목사',성별:'여',나이:16,생년월일:'150817',본인연락처:'',학부모연락처:'010-5126-6126',상태:'등록',주소:''},
     {학생ID:'S127',이름:'최예진',['학년-반']:'고1-1반',담임교사:'김목사',성별:'여',나이:16,생년월일:'150108',본인연락처:'',학부모연락처:'010-5127-6127',상태:'등록',주소:''},
     {학생ID:'S128',이름:'이수아',['학년-반']:'고1-1반',담임교사:'김목사',성별:'여',나이:16,생년월일:'150214',본인연락처:'',학부모연락처:'010-5128-6128',상태:'등록',주소:''},
@@ -1774,7 +1778,7 @@ const _demo = {
     {학생ID:'S147',이름:'권나영',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'151106',본인연락처:'',학부모연락처:'010-5147-6147',상태:'등록',주소:''},
     {학생ID:'S148',이름:'황수빈',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'150317',본인연락처:'',학부모연락처:'010-5148-6148',상태:'등록',주소:''},
     {학생ID:'S149',이름:'류지원',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'150602',본인연락처:'',학부모연락처:'010-5149-6149',상태:'등록',주소:''},
-    {학생ID:'S150',이름:'노은서',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'151227',본인연락처:'',학부모연락처:'010-5150-6150',상태:'등록',주소:''},
+    {학생ID:'S150',이름:'노은서',['학년-반']:'고1-3반',담임교사:'이전도사',성별:'여',나이:16,생년월일:'151227',본인연락처:'',학부모연락처:'010-5150-6150',상태:'장결자',주소:''},
     {학생ID:'S151',이름:'문성호',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'남',나이:17,생년월일:'160111',본인연락처:'',학부모연락처:'010-3151-4151',상태:'등록',주소:''},
     {학생ID:'S152',이름:'백민성',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'남',나이:17,생년월일:'160319',본인연락처:'',학부모연락처:'010-3152-4152',상태:'등록',주소:''},
     {학생ID:'S153',이름:'송재현',['학년-반']:'고2-1반',담임교사:'박전도사',성별:'남',나이:17,생년월일:'161216',본인연락처:'',학부모연락처:'010-3153-4153',상태:'등록',주소:''},
@@ -2152,7 +2156,9 @@ function getSundays2026() {
 // ── STEP 1: 이름 확인 ──────────────────────────────────────
 // ── STEP 1: 이름(아이디) 확인 ──────────────────────────────────
 async function checkLoginName() {
-  if (!allTeachers.length) await loadTeachers();
+  if (!allTeachers.length) {
+    try { await loadTeachers(); } catch(e) { console.warn('checkLoginName loadTeachers:', e); }
+  }
   clearLoginError();
 
   const name = document.getElementById('loginName').value.trim();
@@ -2160,9 +2166,11 @@ async function checkLoginName() {
 
   // 교역자 또는 교사명단에 있는지 확인
   const isAdmin   = isAdminName(name);
+  // 구분이 교역자/목사/전도사/부장인 경우도 admin
   const teacher   = allTeachers.find(t => t['이름'] === name);
+  const isAdminByRole = teacher && hasRole(teacher, ADMIN_ROLES);
 
-  if (!isAdmin && !teacher) {
+  if (!isAdmin && !isAdminByRole && !teacher) {
     showLoginError(`"${name}" 선생님을 명단에서 찾을 수 없습니다.\n이름을 다시 확인해 주세요.`);
     return;
   }
@@ -2204,8 +2212,9 @@ function doLoginWithPw() {
   // 비밀번호 일치 → 역할 결정 후 로그인
   const isAdmin = isAdminName(name);
   const teacher = allTeachers.find(t => t['이름'] === name);
+  const isAdminByRole = teacher && hasRole(teacher, ADMIN_ROLES);
 
-  if (isAdmin) {
+  if (isAdmin || isAdminByRole) {
     currentUser = {
       name, role: 'admin',
       classGroup: teacher ? (teacher['담당 학년-반'] || '') : '',
@@ -2410,16 +2419,40 @@ async function init() {
 }
 
 async function loadStudents() {
-  const r = await callGAS('getStudents');
-  if (r.success) allStudents = r.data;
+  try {
+    const r = await callGAS('getStudents');
+    if (r && r.success) allStudents = r.data;
+  } catch(e) {
+    console.warn('loadStudents 오류 (데모 모드 유지):', e);
+    if (!allStudents.length) {
+      const d = getDemoData('getStudents', {});
+      if (d.success) allStudents = d.data;
+    }
+  }
 }
 async function loadTeachers() {
-  const r = await callGAS('getTeachers');
-  if (r.success) allTeachers = r.data;
+  try {
+    const r = await callGAS('getTeachers');
+    if (r && r.success) allTeachers = r.data;
+  } catch(e) {
+    console.warn('loadTeachers 오류 (데모 모드 유지):', e);
+    if (!allTeachers.length) {
+      const d = getDemoData('getTeachers', {});
+      if (d.success) allTeachers = d.data;
+    }
+  }
 }
 async function loadNewbies() {
-  const r = await callGAS('getNewbies');
-  if (r.success) allNewbies = r.data;
+  try {
+    const r = await callGAS('getNewbies');
+    if (r && r.success) allNewbies = r.data;
+  } catch(e) {
+    console.warn('loadNewbies 오류 (데모 모드 유지):', e);
+    if (!allNewbies.length) {
+      const d = getDemoData('getNewbies', {});
+      if (d.success) allNewbies = d.data;
+    }
+  }
 }
 
 
@@ -2907,7 +2940,7 @@ function renderDashboard() {
     const active  = allStudents.filter(s => s['상태'] === '등록' || s['상태'] === '심방필요');
     const newbie  = allNewbies.filter(n => n['반배정완료여부'] !== 'TRUE');
     const absent  = allStudents.filter(s => s['상태'] === '장결자');
-    const study   = allStudents.filter(s => s['상태'] === '유학중' || s['상태'] === '유학');
+    const study   = allStudents.filter(s => ['유학중','유학'].includes(s['상태']));
     document.getElementById('statTotal').textContent  = allStudents.length;
     document.getElementById('statActive').textContent = active.length;
     document.getElementById('statNewbie').textContent = newbie.length;
@@ -4921,8 +4954,8 @@ document.addEventListener('click', e => {
   // ── 항상 로그인 화면을 먼저 보여줌 (기본값: display:flex)
   document.getElementById('loginScreen').style.display = 'flex';
 
-  // ── 교사 목록 로드
-  await loadTeachers();
+  // ── 교사 목록 로드 (실패해도 로그인 화면은 유지)
+  try { await loadTeachers(); } catch(e) { console.warn('startup loadTeachers:', e); }
 
   // ── 저장된 세션 확인
   let saved = null;
@@ -4941,13 +4974,14 @@ document.addEventListener('click', e => {
 
   // ── 세션 유효성 검증 후 자동 로그인
   if (saved.role === 'admin') {
-    if (!isAdminName(saved.name)) {
+    const savedTeacher = allTeachers.find(t => t['이름'] === saved.name);
+    const savedIsAdmin = isAdminName(saved.name) || (savedTeacher && hasRole(savedTeacher, ADMIN_ROLES));
+    if (!savedIsAdmin) {
       try { localStorage.removeItem('churchUser'); } catch(e) {}
       return;
     }
     currentUser = { name: saved.name, role: 'admin', classGroup: saved.classGroup || '' };
-    const t = allTeachers.find(t => t['이름'] === saved.name);
-    if (t) currentUser.teacherObj = t;
+    if (savedTeacher) currentUser.teacherObj = savedTeacher;
     completeLogin();
 
   } else if (saved.role === 'newbie_teacher') {
