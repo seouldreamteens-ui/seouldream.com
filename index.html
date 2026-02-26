@@ -332,6 +332,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 /* 생일 필터 */
 .month-filter{
   display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;
+  overflow:visible;
 }
 .month-btn{
   padding:5px 11px;border-radius:50px;
@@ -1149,7 +1150,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <span>🎂 이달의 생일</span>
       <span id="birthdayChevron" style="font-size:.8rem;transition:transform .25s;">▼</span>
     </div>
-    <div id="birthdayCollapsible" style="overflow:hidden;transition:max-height .3s ease;max-height:1200px;">
+    <div id="birthdayCollapsible" style="overflow:visible;transition:max-height .3s ease;max-height:3000px;" id="birthdayCollapsibleInner">
     <div class="month-filter" id="monthFilter">
       <button class="month-btn active" data-month="0">전체</button>
       <button class="month-btn" data-month="1">1월</button><button class="month-btn" data-month="2">2월</button>
@@ -1552,7 +1553,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbx3dUUdcf9U8r1S_o0DtOvuL_LkbtCxwo_mFZG17BWKD-64F1bRHyeOqCxC3f2Vd_rRSw/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyMa_Gk0KQNnyLugZJy9X9N0gEeyd3Hw2aD-SR05YLksm1h7b69DX8awWQcdBauI47VIg/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -2701,11 +2702,14 @@ function openPwResetPanel() {
 // ── 홈 탭 생일 섹션 접기/펼치기 ────────────────────────────
 let _birthdayOpen = true;
 function toggleBirthdaySection() {
-  const el = document.getElementById('birthdayCollapsible');
+  const outer = document.getElementById('birthdayCollapsible');
+  const inner  = document.getElementById('birthdayCollapsibleInner');
   const chevron = document.getElementById('birthdayChevron');
+  const el = inner || outer;
   if (!el) return;
   _birthdayOpen = !_birthdayOpen;
-  el.style.maxHeight = _birthdayOpen ? '1200px' : '0';
+  el.style.maxHeight = _birthdayOpen ? '3000px' : '0';
+  el.style.overflow  = _birthdayOpen ? 'visible' : 'hidden';
   if (chevron) chevron.style.transform = _birthdayOpen ? '' : 'rotate(-90deg)';
 }
 function toggleCallout(id) {
@@ -3247,30 +3251,35 @@ function renderDashboard() {
 
 // ── 교사용 이달의 생일 (담당 반 학생) ──────────────────────
 function _renderTeacherBirthday() {
-  // 교사 홈에 생일 섹션 삽입 (없으면 생성)
+  // 교사/리더십 홈에 생일 섹션 삽입 (공지사항 위)
   let bdSection = document.getElementById('teacherBirthdaySection');
   if (!bdSection) {
     bdSection = document.createElement('div');
     bdSection.id = 'teacherBirthdaySection';
-    bdSection.style.cssText = 'margin-top:14px;';
-    // calloutSermon 뒤에 삽입
-    const sermon = document.getElementById('calloutSermon');
-    if (sermon && sermon.parentNode) {
-      sermon.parentNode.insertBefore(bdSection, sermon.nextSibling);
+    bdSection.style.cssText = 'margin-bottom:14px;';
+    // calloutNotice 앞에 삽입 (공지사항 위)
+    const notice = document.getElementById('calloutNotice');
+    if (notice && notice.parentNode) {
+      notice.parentNode.insertBefore(bdSection, notice);
     } else {
-      document.getElementById('view-dashboard').appendChild(bdSection);
+      const sermon = document.getElementById('calloutSermon');
+      if (sermon && sermon.parentNode) {
+        sermon.parentNode.insertBefore(bdSection, sermon.nextSibling);
+      } else {
+        document.getElementById('view-dashboard').appendChild(bdSection);
+      }
     }
   }
 
+  const isLeader = currentUser && (currentUser.role === 'leadership');
   const myClass = currentUser ? (currentUser.classGroup || '') : '';
   const myClasses = myClass.split(',').map(c=>c.trim()).filter(c=>c);
 
-  // 이달 생일 학생 (담당 반만)
   const now = new Date();
   const m = now.getMonth() + 1;
 
   function getBdMonth(bd) {
-    const s = String(bd||'').replace(/\s/g,'');
+    const s = String(bd||'').replace(/[\s]/g,'');
     if (!s) return 0;
     const ymatch = s.match(/^\d{4}-(\d{2})-\d{2}$/);
     if (ymatch) return parseInt(ymatch[1]);
@@ -3279,7 +3288,7 @@ function _renderTeacherBirthday() {
   }
 
   function getBdDay(bd) {
-    const s = String(bd||'').replace(/\s/g,'');
+    const s = String(bd||'').replace(/[\s]/g,'');
     if (!s) return 0;
     const ymatch = s.match(/^\d{4}-\d{2}-(\d{2})$/);
     if (ymatch) return parseInt(ymatch[1]);
@@ -3287,43 +3296,59 @@ function _renderTeacherBirthday() {
     return 0;
   }
 
-  let myStudents = [];
-  if (myClasses.length > 0) {
-    myStudents = allStudents.filter(s => myClasses.some(c => s['학년-반'] === c));
+  function fmtDay(bd) {
+    const s = String(bd||'').replace(/[\s]/g,'');
+    if (!s) return '';
+    const ymatch = s.match(/^\d{4}-(\d{2})-(\d{2})$/);
+    if (ymatch) return parseInt(ymatch[1]) + '/' + parseInt(ymatch[2]);
+    if (s.length >= 6) return parseInt(s.slice(2,4)) + '/' + parseInt(s.slice(4,6));
+    return '';
   }
 
-  const birthdayStudents = myStudents.filter(s => getBdMonth(s['생년월일']) === m);
-  birthdayStudents.sort((a,b) => getBdDay(a['생년월일']) - getBdDay(b['생년월일']));
+  let birthdayPeople = [];
+  let sectionLabel = '';
+
+  if (isLeader) {
+    // 리더십: 교역자·리더십·교사 생일 표시
+    birthdayPeople = allTeachers.filter(t => getBdMonth(t['생년월일']) === m)
+      .map(t => ({ name: t['이름'], bd: t['생년월일'] }));
+    sectionLabel = '교역자·교사진';
+  } else {
+    // 일반 교사: 담당 반 학생 생일
+    let myStudents = [];
+    if (myClasses.length > 0) {
+      myStudents = allStudents.filter(s => myClasses.some(c => s['학년-반'] === c));
+    }
+    birthdayPeople = myStudents.filter(s => getBdMonth(s['생년월일']) === m)
+      .map(s => ({ name: s['이름'], bd: s['생년월일'] }));
+    sectionLabel = myClasses.join(', ') || '담당 반 없음';
+  }
+  birthdayPeople.sort((a,b) => getBdDay(a.bd) - getBdDay(b.bd));
+  const birthdayStudents = birthdayPeople; // 하위 호환 변수
 
   if (!birthdayStudents.length) {
     bdSection.innerHTML = `
-      <div style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:6px;">
-        🎂 이달(${m}월)의 생일 <span style="font-size:.7rem;color:var(--gray-400);">(${myClass || '담당 반 없음'})</span>
+      <div style="font-size:.9rem;font-weight:700;color:var(--gray-500);margin-bottom:6px;">
+        🎂 이달(${m}월)의 생일
+        <span style="font-size:.75rem;color:var(--gray-400);margin-left:4px;">(${sectionLabel})</span>
       </div>
-      <div style="font-size:.78rem;color:var(--gray-400);padding:8px 0;">이달 생일인 학생이 없습니다.</div>`;
+      <div style="font-size:.82rem;color:var(--gray-400);padding:8px 0;">이달 생일인 분이 없습니다.</div>`;
     return;
   }
 
-  const listHtml = birthdayStudents.map(s => {
-    const bd = String(s['생년월일']||'');
-    let dayStr = '';
-    const bd6 = bd.replace(/\D/g,'');
-    if (bd6.length >= 6) dayStr = `${parseInt(bd6.slice(2,4))}/${parseInt(bd6.slice(4,6))}`;
-    else if (bd.includes('-')) {
-      const parts = bd.split('-');
-      dayStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-    }
-    return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--primary-lt);border-radius:20px;padding:4px 10px;font-size:.78rem;font-weight:600;color:var(--primary);margin:3px;">
-      ${s['이름']}<span style="color:var(--gray-500);font-size:.7rem;">(${dayStr})</span>
+  const listHtml = birthdayStudents.map(p => {
+    const dayStr = fmtDay(p.bd);
+    return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--primary-lt);border-radius:20px;padding:5px 12px;font-size:.85rem;font-weight:600;color:var(--primary);margin:3px;">
+      ${p.name}${dayStr ? `<span style="color:var(--gray-500);font-size:.75rem;">(${dayStr})</span>` : ''}
     </span>`;
   }).join('');
 
   bdSection.innerHTML = `
-    <div style="font-size:.8rem;font-weight:700;color:var(--gray-700);margin-bottom:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;"
-         onclick="this.nextSibling.style.display=this.nextSibling.style.display==='none'?'block':'none'">
+    <div style="font-size:.9rem;font-weight:800;color:var(--gray-700);margin-bottom:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;"
+         onclick="this.nextSibling.style.display=this.nextSibling.style.display==='none'?'flex':'none'">
       <span>🎂 이달(${m}월)의 생일 · <span style="color:var(--primary);">${birthdayStudents.length}명</span>
-        <span style="font-size:.68rem;color:var(--gray-400);margin-left:4px;">(${myClasses.join(', ')})</span></span>
-      <span style="font-size:.7rem;">▼</span>
+        <span style="font-size:.72rem;color:var(--gray-400);margin-left:4px;">(${sectionLabel})</span></span>
+      <span style="font-size:.72rem;color:var(--gray-400);">▼</span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:2px;">${listHtml}</div>`;
 }
@@ -3708,13 +3733,9 @@ function setReason(id, reason) {
 
 // ── 실시간 출석 폴링 ──────────────────────────────────────────
 function startAttPoll() {
-  stopAttPoll(); // 기존 인터벌 정리
-  _pollInterval = setInterval(async () => {
-    const cls  = document.getElementById('attClass').value;
-    const date = document.getElementById('attDate').value;
-    if (!cls || !date || !currentAttRecords || !Object.keys(currentAttRecords).length) return;
-    await loadAttendance(true); // silentMerge=true
-  }, 15000); // 15초마다
+  // 자동 폴링 비활성화 - 작업 중 내용 리셋 방지
+  // 출석 데이터는 수동으로 저장 버튼을 통해서만 갱신됨
+  stopAttPoll();
 }
 function stopAttPoll() {
   if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
