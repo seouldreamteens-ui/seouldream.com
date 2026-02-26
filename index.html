@@ -814,6 +814,8 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .teacher-home .section-title-birthday,
 .teacher-home .month-filter,
 .teacher-home #studentList{ display:none !important; }
+/* 교사용 생일섹션은 별도 렌더링 */
+#teacherBirthdaySection { display:block; }
 
 /* 공지사항·사역일정 — 교사 모드에서 추가 버튼 숨김 */
 .teacher-home .callout-add-btn,
@@ -1550,7 +1552,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_EkireNTjDgNNKMK6A-0dMWOP9dOj7daKQewZ3CF91girr5masnnMNszgdcGzx-e_7w/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbx3dUUdcf9U8r1S_o0DtOvuL_LkbtCxwo_mFZG17BWKD-64F1bRHyeOqCxC3f2Vd_rRSw/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -1593,6 +1595,11 @@ function _localClearPw(name) {
 }
 
 /** GAS에서 비밀번호 검증 (localStorage 마이그레이션 포함) */
+/** GAS(구글 시트)의 비밀번호를 항상 우선으로 사용
+ * - GAS에 저장된 비밀번호 있음 → GAS 비밀번호만 유효 (localStorage 무시)
+ * - GAS에 없음(기본값 1234) → 1234 또는 localStorage 비밀번호 허용 (마이그레이션)
+ * - GAS 연결 실패 → localStorage 폴백
+ */
 async function verifyUserPasswordAsync(name, pw) {
   if (!GAS_URL) {
     // 데모 모드: 로컬만 사용
@@ -1602,21 +1609,22 @@ async function verifyUserPasswordAsync(name, pw) {
     const r = await callGAS('verifyPassword', { name, pw });
     if (r && r.success) {
       if (r.data.match) return true;
-      // GAS 불일치지만 GAS에 커스텀 비밀번호 없는 경우 → localStorage 체크
-      if (!r.data.hasCustomPw) {
-        const localPw = _localGetPw(name);
-        if (localPw !== '1234' && pw === localPw) {
-          // localStorage에 있는 비밀번호로 맞음 → GAS에 자동 동기화
-          callGAS('setPassword', { name, pw }).catch(() => {});
-          return true;
-        }
+      // GAS에 커스텀 비밀번호가 등록된 경우 → 무조건 GAS 비밀번호만 허용
+      if (r.data.hasCustomPw) return false;
+      // GAS에 비밀번호 없음(기본 1234) → localStorage 마이그레이션 허용
+      const localPw = _localGetPw(name);
+      if (localPw !== '1234' && pw === localPw) {
+        // localStorage 비밀번호가 맞음 → GAS에 자동 동기화 후 로그인
+        callGAS('setPassword', { name, pw }).catch(() => {});
+        _localClearPw(name); // localStorage 정리
+        return true;
       }
       return false;
     }
   } catch(e) {
     console.warn('verifyPassword GAS 오류, 로컬 폴백:', e);
   }
-  // GAS 연결 실패 → 로컬로만 검증
+  // GAS 완전 실패 → 로컬로만 검증
   return pw === _localGetPw(name);
 }
 
@@ -3221,15 +3229,13 @@ function renderDashboard() {
     // ── 교사 홈 (담임·부담임·새친구): 공지·말씀·사역일정 읽기 전용 ─
     dashboard.classList.add('teacher-home');
 
-    // 추가·편집 버튼 강제 숨김 (CSS teacher-home 클래스 + 인라인 보강)
     document.querySelectorAll('.callout-add-btn').forEach(b => b.style.display = 'none');
     document.getElementById('sermonEditBtn').style.display = 'none';
-
-    // 설교 콜아웃 표시 (읽기 전용)
     document.getElementById('calloutSermon').style.display = 'block';
-
-    // 이번 주 설교 자동 세팅
     sermonWeekIdx = findNearestSundayIdx();
+
+    // ── 교사용 생일 섹션 렌더링 (담당 반 학생) ──
+    _renderTeacherBirthday();
   }
 
   // 공통: 공지·사역일정은 항상 렌더
@@ -3238,6 +3244,89 @@ function renderDashboard() {
   renderSermon();
 }
 
+
+// ── 교사용 이달의 생일 (담당 반 학생) ──────────────────────
+function _renderTeacherBirthday() {
+  // 교사 홈에 생일 섹션 삽입 (없으면 생성)
+  let bdSection = document.getElementById('teacherBirthdaySection');
+  if (!bdSection) {
+    bdSection = document.createElement('div');
+    bdSection.id = 'teacherBirthdaySection';
+    bdSection.style.cssText = 'margin-top:14px;';
+    // calloutSermon 뒤에 삽입
+    const sermon = document.getElementById('calloutSermon');
+    if (sermon && sermon.parentNode) {
+      sermon.parentNode.insertBefore(bdSection, sermon.nextSibling);
+    } else {
+      document.getElementById('view-dashboard').appendChild(bdSection);
+    }
+  }
+
+  const myClass = currentUser ? (currentUser.classGroup || '') : '';
+  const myClasses = myClass.split(',').map(c=>c.trim()).filter(c=>c);
+
+  // 이달 생일 학생 (담당 반만)
+  const now = new Date();
+  const m = now.getMonth() + 1;
+
+  function getBdMonth(bd) {
+    const s = String(bd||'').replace(/\s/g,'');
+    if (!s) return 0;
+    const ymatch = s.match(/^\d{4}-(\d{2})-\d{2}$/);
+    if (ymatch) return parseInt(ymatch[1]);
+    if (s.length >= 4) return parseInt(s.slice(2,4));
+    return 0;
+  }
+
+  function getBdDay(bd) {
+    const s = String(bd||'').replace(/\s/g,'');
+    if (!s) return 0;
+    const ymatch = s.match(/^\d{4}-\d{2}-(\d{2})$/);
+    if (ymatch) return parseInt(ymatch[1]);
+    if (s.length >= 6) return parseInt(s.slice(4,6));
+    return 0;
+  }
+
+  let myStudents = [];
+  if (myClasses.length > 0) {
+    myStudents = allStudents.filter(s => myClasses.some(c => s['학년-반'] === c));
+  }
+
+  const birthdayStudents = myStudents.filter(s => getBdMonth(s['생년월일']) === m);
+  birthdayStudents.sort((a,b) => getBdDay(a['생년월일']) - getBdDay(b['생년월일']));
+
+  if (!birthdayStudents.length) {
+    bdSection.innerHTML = `
+      <div style="font-size:.8rem;font-weight:700;color:var(--gray-500);margin-bottom:6px;">
+        🎂 이달(${m}월)의 생일 <span style="font-size:.7rem;color:var(--gray-400);">(${myClass || '담당 반 없음'})</span>
+      </div>
+      <div style="font-size:.78rem;color:var(--gray-400);padding:8px 0;">이달 생일인 학생이 없습니다.</div>`;
+    return;
+  }
+
+  const listHtml = birthdayStudents.map(s => {
+    const bd = String(s['생년월일']||'');
+    let dayStr = '';
+    const bd6 = bd.replace(/\D/g,'');
+    if (bd6.length >= 6) dayStr = `${parseInt(bd6.slice(2,4))}/${parseInt(bd6.slice(4,6))}`;
+    else if (bd.includes('-')) {
+      const parts = bd.split('-');
+      dayStr = `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+    }
+    return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--primary-lt);border-radius:20px;padding:4px 10px;font-size:.78rem;font-weight:600;color:var(--primary);margin:3px;">
+      ${s['이름']}<span style="color:var(--gray-500);font-size:.7rem;">(${dayStr})</span>
+    </span>`;
+  }).join('');
+
+  bdSection.innerHTML = `
+    <div style="font-size:.8rem;font-weight:700;color:var(--gray-700);margin-bottom:6px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;"
+         onclick="this.nextSibling.style.display=this.nextSibling.style.display==='none'?'block':'none'">
+      <span>🎂 이달(${m}월)의 생일 · <span style="color:var(--primary);">${birthdayStudents.length}명</span>
+        <span style="font-size:.68rem;color:var(--gray-400);margin-left:4px;">(${myClasses.join(', ')})</span></span>
+      <span style="font-size:.7rem;">▼</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:2px;">${listHtml}</div>`;
+}
 function renderStudentList() {
   const el = document.getElementById('studentList');
   const m = (filterMonth > 0) ? filterMonth : new Date().getMonth() + 1;
@@ -3371,11 +3460,28 @@ function setupAttendanceDateSelect() {
 
   const classEl = document.getElementById('attClass');
 
-  if (isLeadership) {
+  // 리더십 겸 담임 여부 확인 (구분 필드에 '리더십'과 '담임' 둘 다 있는 경우)
+  const isLeadershipAndTeacher = isLeadership &&
+    currentUser.teacherObj && hasRole(currentUser.teacherObj, ATTENDANCE_TEACHER_ROLES);
+
+  if (isLeadership && !isLeadershipAndTeacher) {
+    // 순수 리더십: 교사 출석만
     classEl.innerHTML = `<option value="__teachers__">👥 교사 출석체크</option>`;
     classEl.value = '__teachers__';
     classEl.setAttribute('disabled', 'disabled');
     renderAttLockBanner('교사 전체');
+    autoSelectNearestSunday();
+    loadAttendance();
+  } else if (isLeadershipAndTeacher) {
+    // 리더십 겸 담임: 교사 출석 + 담당 반 모두 선택 가능
+    const rawClass = currentUser.classGroup || '';
+    const myClasses = rawClass ? rawClass.split(',').map(c=>c.trim()).filter(c=>c) : [];
+    classEl.innerHTML =
+      '<option value="__teachers__">👥 교사 출석체크</option>' +
+      myClasses.filter(c=>allClasses.includes(c)).map(c=>`<option value="${c}">${c}</option>`).join('');
+    classEl.value = '__teachers__';
+    classEl.removeAttribute('disabled');
+    renderAttLockBanner('선택하세요');
     autoSelectNearestSunday();
     loadAttendance();
   } else if (isAdmin) {
@@ -4254,15 +4360,15 @@ function renderNewbieList() {
           <div class="week-item">
             <div class="week-label">${i+1}주차</div>
             <input class="mmdd-input" type="text" maxlength="5"
+              id="wdate_${n['이름'].replace(/\s/g,'_')}_${i+1}"
               value="${toMmDd(w.date)}"
               placeholder="MM.DD"
-              onblur="updateNewbieDate('${n['이름']}',${i+1},this.value)"
               oninput="formatMmDdInput(this)">
-            <div style="display:flex;gap:4px;margin-top:5px;">
-              <button class="check-btn ${w.att === '출석' ? 'present' : 'none'}"
-                onclick="setNewbieAtt('${n['이름']}',${i+1},'출석',this)">출석</button>
-              <button class="check-btn ${w.att === '결석' ? 'absent' : 'none'}"
-                onclick="setNewbieAtt('${n['이름']}',${i+1},'결석',this)">결석</button>
+            <div style="margin-top:5px;">
+              ${w.att === '출석'
+                ? `<div style="font-size:.7rem;color:#16A34A;font-weight:700;">✅ 출석</div>`
+                : `<button class="btn btn-primary btn-sm" style="width:100%;font-size:.72rem;padding:4px;"
+                    onclick="saveNewbieWeek('${n['이름']}',${i+1})">저장</button>`}
             </div>
           </div>`).join('')}
       </div>
@@ -4285,6 +4391,37 @@ function formatMmDdInput(el) {
   el.value = v;
 }
 
+
+// ── 새친구 주차 출석 저장 (날짜 입력 + 저장 버튼) ─────────────
+async function saveNewbieWeek(name, week) {
+  const inputId = 'wdate_' + name.replace(/\s/g, '_') + '_' + week;
+  const input = document.getElementById(inputId);
+  if (!input) { showToast('날짜 입력란을 찾을 수 없습니다.', 'error'); return; }
+  const rawVal = input.value.trim();
+  if (!rawVal) { showToast(`${week}주차 날짜를 입력해주세요. (예: 02.09)`, 'error'); return; }
+  const date = parseMmDd(rawVal);
+  if (!date) { showToast('날짜 형식이 올바르지 않습니다. MM.DD 형식으로 입력하세요.', 'error'); return; }
+
+  const newbie = allNewbies.find(n => (n['이름'] === name) || (n['학생ID'] === name));
+  if (!newbie) { showToast('새친구를 찾을 수 없습니다.', 'error'); return; }
+
+  const r = await callGAS('updateNewbieAtt', {
+    studentId: newbie['학생ID'] || '',
+    name,
+    weekNum: week,
+    date,
+    status: '출석',  // 저장 = 출석
+  });
+
+  if (r.success) {
+    newbie[`${week}주차날짜`] = date;
+    newbie[`${week}주차출결`] = '출석';
+    showToast(`${week}주차 출석 저장됨 (${toMmDd(date)})`, 'success');
+    renderNewbieList();
+  } else {
+    showToast(r.message || '저장 실패', 'error');
+  }
+}
 async function updateNewbieDate(id, week, rawVal) {
   const date = parseMmDd(rawVal);
   // 신규 시트: 이름이 키, 구버전: 학생ID가 키
@@ -4411,6 +4548,15 @@ async function deleteNewbieByName(name) {
 }
 function openAssignModal(id, name) {
   document.getElementById('assignStudentId').value = id;
+  // 이름 hidden input (신규 시트용)
+  let nameInput = document.getElementById('assignStudentName');
+  if (!nameInput) {
+    nameInput = document.createElement('input');
+    nameInput.type = 'hidden';
+    nameInput.id = 'assignStudentName';
+    document.getElementById('assignStudentId').parentNode.appendChild(nameInput);
+  }
+  nameInput.value = name;
   document.getElementById('assignModal').querySelector('.modal-title').textContent = `${name} - 반 배정`;
   const classes = [...new Set(allStudents.filter(s=>s['상태']==='등록').map(s=>s['학년-반']))].sort();
   const teachers = allTeachers.filter(t=>t['구분']==='담임');
@@ -4421,10 +4567,13 @@ function openAssignModal(id, name) {
 }
 
 async function confirmAssign() {
-  const id  = document.getElementById('assignStudentId').value;
-  const cls = document.getElementById('assignClass').value;
+  const id   = document.getElementById('assignStudentId').value;
+  const name = document.getElementById('assignStudentName') ? document.getElementById('assignStudentName').value : id;
+  const cls  = document.getElementById('assignClass').value;
   if (!cls) { showToast('반을 선택해주세요.','error'); return; }
-  const r = await callGAS('assignToClass', {studentId:id, targetClass:cls});
+  const teacher = allTeachers.find(t => (t['담당 학년-반']||'').split(',').map(c=>c.trim()).includes(cls));
+  const teacherName = teacher ? teacher['이름'] : '';
+  const r = await callGAS('assignToClass', { studentId: id, name, targetClass: cls, teacher: teacherName });
   if (r.success) {
     showToast(r.message, 'success');
     closeModal('assignModal');
@@ -4625,19 +4774,43 @@ function renderRecords() {
   filtered = sortStudents(filtered);
   if (!filtered.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📚</div>학생이 없습니다.</div>`; return; }
 
-  // ── 학년별 그룹 헤더 표시 (정렬키가 'class'인 경우) ─
+  // ── 학년·반별 그룹 헤더 표시 (정렬키가 'class'인 경우) ─
   if (recSortKey === 'class') {
-    const groups = {};
+    // 1단계: 학년별 그룹
+    const gradeGroups = {};
     filtered.forEach(s => {
       const cls = s['학년-반'] || '기타';
-      const key = GRADE_ORDER_REC.find(g => g==='영어반' ? cls.includes('영어반') : cls.startsWith(g)) || '기타';
-      (groups[key] = groups[key] || []).push(s);
+      const gradeKey = GRADE_ORDER_REC.find(g => g==='영어반' ? cls.includes('영어반') : cls.startsWith(g)) || '기타';
+      (gradeGroups[gradeKey] = gradeGroups[gradeKey] || []).push(s);
     });
-    const orderedKeys = [...GRADE_ORDER_REC.filter(g => groups[g]), ...(groups['기타'] ? ['기타'] : [])];
-    el.innerHTML = orderedKeys.map(g => `
-      <div style="background:var(--primary-lt);border-left:3px solid var(--primary);padding:6px 12px;border-radius:4px;margin:10px 0 6px;font-size:.78rem;font-weight:800;color:var(--primary);">${g} · ${groups[g].length}명</div>
-      ${groups[g].map(_studentCard).join('')}
-    `).join('');
+    const orderedGrades = [...GRADE_ORDER_REC.filter(g => gradeGroups[g]), ...(gradeGroups['기타'] ? ['기타'] : [])];
+
+    // 2단계: 각 학년 내 반별 그룹 (학년-반 값 그대로 사용)
+    el.innerHTML = orderedGrades.map(grade => {
+      const gradeStudents = gradeGroups[grade];
+      // 반별 서브그룹
+      const classGroups = {};
+      gradeStudents.forEach(s => {
+        const cls = s['학년-반'] || '기타';
+        (classGroups[cls] = classGroups[cls] || []).push(s);
+      });
+      // 반 이름 정렬
+      const orderedClasses = Object.keys(classGroups).sort((a,b) => a.localeCompare(b,'ko'));
+
+      const classHtml = orderedClasses.map(cls => {
+        const stuInClass = classGroups[cls];
+        return `
+          <div style="background:#F8FAFF;border-left:2px solid var(--primary);padding:4px 10px;border-radius:3px;margin:6px 0 3px 8px;font-size:.74rem;font-weight:700;color:#3B5BDB;display:flex;align-items:center;gap:6px;">
+            <span>${cls}</span><span style="color:var(--gray-400);font-weight:500;">${stuInClass.length}명</span>
+          </div>
+          ${stuInClass.map(_studentCard).join('')}`;
+      }).join('');
+
+      const totalCount = gradeStudents.length;
+      return `
+        <div style="background:var(--primary-lt);border-left:3px solid var(--primary);padding:6px 12px;border-radius:4px;margin:10px 0 4px;font-size:.78rem;font-weight:800;color:var(--primary);">${grade} · 총 ${totalCount}명</div>
+        ${classHtml}`;
+    }).join('');
     return;
   }
 
