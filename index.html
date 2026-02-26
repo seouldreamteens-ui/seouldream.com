@@ -815,6 +815,18 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .teacher-home .section-title-birthday,
 .teacher-home .month-filter,
 .teacher-home #studentList{ display:none !important; }
+.trend-period-btn{
+  flex:1;padding:8px 4px;border:1.5px solid var(--gray-200);border-radius:50px;
+  background:#fff;font-family:var(--font-main);font-size:.78rem;font-weight:700;
+  color:var(--gray-500);cursor:pointer;transition:all .15s;
+}
+.trend-period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.trend-period-btn:hover:not(.active){border-color:var(--primary);color:var(--primary);}
+/* 브리핑 카드 */
+.briefing-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}
+.briefing-card{background:#fff;border:1.5px solid var(--gray-200);border-radius:10px;padding:12px 14px;text-align:center;}
+.briefing-card .num{font-size:1.8rem;font-weight:800;line-height:1;}
+.briefing-card .lbl{font-size:.7rem;color:var(--gray-500);margin-top:4px;}
 /* 교사용 생일섹션은 별도 렌더링 */
 #teacherBirthdaySection { display:block; }
 
@@ -1280,11 +1292,34 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <option value="">반 선택</option>
       </select>
     </div>
+    <!-- 교역자 브리핑 패널 (admin만) -->
+    <div id="weeklyBriefingPanel" style="display:none;margin-bottom:12px;"></div>
+
     <!-- 테이블 영역 -->
     <div id="attstatContent" style="overflow-x:auto;">
       <div class="empty" style="padding:40px 0;"><div class="empty-icon">📊</div>출석현황을 불러오는 중...</div>
     </div>
   </section>
+
+  <!-- 출석 추이 팝업 -->
+  <div id="trendPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:flex-end;justify-content:center;">
+    <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:22px 18px 32px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-size:1rem;font-weight:800;color:var(--gray-800);">📊 출석 추이 분석</div>
+        <button onclick="closeTrendPopup()" style="background:var(--gray-100);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+      </div>
+      <!-- 기간 선택 -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;" id="trendPeriodBtns">
+        <button class="trend-period-btn active" data-months="1" onclick="loadTrend(1)">1개월</button>
+        <button class="trend-period-btn" data-months="3" onclick="loadTrend(3)">3개월</button>
+        <button class="trend-period-btn" data-months="6" onclick="loadTrend(6)">6개월</button>
+        <button class="trend-period-btn" data-months="12" onclick="loadTrend(12)">1년</button>
+      </div>
+      <div id="trendContent">
+        <div class="loading"><div class="spinner"></div><span>불러오는 중...</span></div>
+      </div>
+    </div>
+  </div>
 
   <!-- 교적 관리 -->
   <section class="view" id="view-records">
@@ -3272,8 +3307,6 @@ function _renderTeacherBirthday() {
   }
 
   const isLeader = currentUser && (currentUser.role === 'leadership');
-  const myClass = currentUser ? (currentUser.classGroup || '') : '';
-  const myClasses = myClass.split(',').map(c=>c.trim()).filter(c=>c);
 
   const now = new Date();
   const m = now.getMonth() + 1;
@@ -3308,11 +3341,25 @@ function _renderTeacherBirthday() {
   let birthdayPeople = [];
   let sectionLabel = '';
 
+  const myClass = currentUser ? (currentUser.classGroup || '') : '';
+  const myClasses_bd = myClass.split(',').map(c=>c.trim()).filter(c=>c);
+  // 리더십 겸 담임 여부
+  const isLeaderAndTeacher = isLeader && myClasses_bd.length > 0;
+
   if (isLeader) {
     // 리더십: 교역자·리더십·교사 생일 표시
     birthdayPeople = allTeachers.filter(t => getBdMonth(t['생년월일']) === m)
-      .map(t => ({ name: t['이름'], bd: t['생년월일'] }));
-    sectionLabel = '교역자·교사진';
+      .map(t => ({ name: t['이름'], bd: t['생년월일'], type: 'teacher' }));
+
+    // 리더십 겸 담임: 담당 반 학생 생일도 추가
+    if (isLeaderAndTeacher) {
+      const myStudents = allStudents.filter(s => myClasses_bd.some(c => s['학년-반'] === c));
+      const stuBd = myStudents.filter(s => getBdMonth(s['생년월일']) === m)
+        .map(s => ({ name: s['이름'], bd: s['생년월일'], type: 'student', cls: s['학년-반'] }));
+      birthdayPeople = [...birthdayPeople, ...stuBd];
+    }
+
+    sectionLabel = isLeaderAndTeacher ? `교사진 + ${myClasses_bd.join(',')} 학생` : '교역자·교사진';
   } else {
     // 일반 교사: 담당 반 학생 생일
     let myStudents = [];
@@ -3338,8 +3385,11 @@ function _renderTeacherBirthday() {
 
   const listHtml = birthdayStudents.map(p => {
     const dayStr = fmtDay(p.bd);
-    return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--primary-lt);border-radius:20px;padding:5px 12px;font-size:.85rem;font-weight:600;color:var(--primary);margin:3px;">
-      ${p.name}${dayStr ? `<span style="color:var(--gray-500);font-size:.75rem;">(${dayStr})</span>` : ''}
+    const bg  = p.type === 'student' ? '#F0FDF4' : 'var(--primary-lt)';
+    const col = p.type === 'student' ? '#16A34A' : 'var(--primary)';
+    const clsTag = p.cls ? `<span style="font-size:.65rem;color:#888;margin-left:2px;">${p.cls}</span>` : '';
+    return `<span style="display:inline-flex;align-items:center;gap:4px;background:${bg};border-radius:20px;padding:5px 12px;font-size:.85rem;font-weight:600;color:${col};margin:3px;border:1px solid rgba(0,0,0,.07);">
+      ${p.name}${clsTag}${dayStr ? `<span style="color:#888;font-size:.75rem;margin-left:2px;">(${dayStr})</span>` : ''}
     </span>`;
   }).join('');
 
@@ -3876,6 +3926,176 @@ async function loadAttendanceStats() {
 let _attstatMode = 'student'; // 'student' | 'teacher'
 let _attstatData = null;      // { headers, rows, dates }
 
+
+// ══════════════════════════════════════════════════════════════
+// 출석 브리핑 & 추이 분석 (교역자용)
+// ══════════════════════════════════════════════════════════════
+
+let _briefingData = null;
+
+async function loadWeeklyBriefing() {
+  const panel = document.getElementById('weeklyBriefingPanel');
+  if (!panel) return;
+  if (currentUser?.role !== 'admin') { panel.style.display='none'; return; }
+
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><span>브리핑 불러오는 중...</span></div>';
+
+  const r = await callGAS('getWeeklyBriefing', {});
+  if (!r.success || !r.data) { panel.style.display='none'; return; }
+
+  _briefingData = r.data;
+  const d = r.data;
+  const rate = d.total > 0 ? Math.round(d.present / d.total * 100) : 0;
+
+  const dateStr = d.lastSunday ? (d.lastSunday.slice(5,7)*1) + '/' + (d.lastSunday.slice(8,10)*1) + ' 주일' : '';
+  const weekStr = d.weekStart && d.weekEnd
+    ? `(${d.weekStart.slice(5,7)*1}/${d.weekStart.slice(8,10)*1} ~ ${d.weekEnd.slice(5,7)*1}/${d.weekEnd.slice(8,10)*1})`
+    : '';
+
+  panel.innerHTML = `
+    <div style="background:linear-gradient(135deg,#EFF6FF,#F0FDF4);border:1.5px solid #BAE6FD;border-radius:12px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:.78rem;font-weight:800;color:var(--primary);">📋 이번주 출석 브리핑</div>
+          <div style="font-size:.7rem;color:var(--gray-400);margin-top:2px;">${dateStr} 기준 ${weekStr}</div>
+        </div>
+        <button onclick="openTrendPopup()" style="
+          background:var(--primary);color:#fff;border:none;border-radius:8px;
+          padding:7px 12px;font-size:.75rem;font-weight:700;cursor:pointer;">
+          📈 추이 분석
+        </button>
+      </div>
+      <div class="briefing-grid">
+        <div class="briefing-card" style="border-color:#BFDBFE;">
+          <div class="num" style="color:var(--primary);">${d.present}<span style="font-size:.9rem;color:var(--gray-400);">/${d.total}</span></div>
+          <div class="lbl">출석 인원<span style="display:block;color:var(--primary);font-weight:700;">${rate}%</span></div>
+        </div>
+        <div class="briefing-card" style="border-color:#FEF08A;">
+          <div class="num" style="color:#CA8A04;">${d.visitNeeded}</div>
+          <div class="lbl">심방필요</div>
+        </div>
+        <div class="briefing-card" style="border-color:#FECACA;">
+          <div class="num" style="color:#DC2626;">${d.longAbsent}</div>
+          <div class="lbl">장결자</div>
+        </div>
+        <div class="briefing-card" style="border-color:#BBF7D0;">
+          <div class="num" style="color:var(--green);">${d.total - d.visitNeeded - d.longAbsent}</div>
+          <div class="lbl">등록 (정상)</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openTrendPopup() {
+  const popup = document.getElementById('trendPopup');
+  if (popup) popup.style.display = 'flex';
+  loadTrend(3);
+}
+
+function closeTrendPopup() {
+  const popup = document.getElementById('trendPopup');
+  if (popup) popup.style.display = 'none';
+}
+
+async function loadTrend(months) {
+  // 버튼 active 상태
+  document.querySelectorAll('.trend-period-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.months) === months);
+  });
+
+  const el = document.getElementById('trendContent');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div><span>계산 중...</span></div>';
+
+  const r = await callGAS('getAttendanceTrend', { months });
+  if (!r.success || !r.data) {
+    el.innerHTML = '<div class="empty">데이터를 불러올 수 없습니다.</div>';
+    return;
+  }
+  const data = r.data;
+
+  // 현재 상태 스냅샷
+  const snap = data.snapshot || {};
+  const monthly = data.monthly || [];
+  const trend   = data.trend   || [];
+
+  // 최고/최저 출석률
+  const rates = monthly.filter(m=>m.enrolled>0).map(m=>m.rate);
+  const maxRate = rates.length ? Math.max(...rates) : 0;
+  const minRate = rates.length ? Math.min(...rates) : 0;
+  const avgRate = rates.length ? Math.round(rates.reduce((a,b)=>a+b,0)/rates.length) : 0;
+
+  // 바 차트 렌더링
+  const maxPresent = Math.max(...monthly.map(m=>m.enrolled||1), 1);
+  const chartHtml = monthly.map(m => {
+    const barH = m.enrolled > 0 ? Math.round(m.present / m.enrolled * 80) : 0;
+    const mo = m.month.slice(5,7)*1;
+    const rateCol = m.rate >= 70 ? '#16A34A' : m.rate >= 50 ? '#D97706' : '#DC2626';
+    return `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:0;">
+        <div style="font-size:.65rem;color:${rateCol};font-weight:700;">${m.rate}%</div>
+        <div style="width:100%;height:80px;background:var(--gray-100);border-radius:4px;display:flex;align-items:flex-end;overflow:hidden;">
+          <div style="width:100%;height:${barH}%;background:${rateCol};border-radius:4px;transition:height .5s;"></div>
+        </div>
+        <div style="font-size:.65rem;color:var(--gray-500);text-align:center;">${mo}월</div>
+        <div style="font-size:.68rem;color:var(--gray-700);font-weight:600;">${m.present}</div>
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <!-- 스냅샷 -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;">
+      <div style="background:#EFF6FF;border-radius:8px;padding:10px;text-align:center;">
+        <div style="font-size:1.4rem;font-weight:800;color:var(--primary);">${snap.enrolled||0}</div>
+        <div style="font-size:.65rem;color:var(--gray-500);">등록</div>
+      </div>
+      <div style="background:#FFFBEB;border-radius:8px;padding:10px;text-align:center;">
+        <div style="font-size:1.4rem;font-weight:800;color:#CA8A04;">${snap.visitNeeded||0}</div>
+        <div style="font-size:.65rem;color:var(--gray-500);">심방필요</div>
+      </div>
+      <div style="background:#FEF2F2;border-radius:8px;padding:10px;text-align:center;">
+        <div style="font-size:1.4rem;font-weight:800;color:#DC2626;">${snap.longAbsent||0}</div>
+        <div style="font-size:.65rem;color:var(--gray-500);">장결자</div>
+      </div>
+    </div>
+    <!-- 통계 요약 -->
+    <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;">
+      <div style="text-align:center;"><div style="font-size:1rem;font-weight:800;color:var(--primary);">${avgRate}%</div><div style="font-size:.65rem;color:var(--gray-400);">평균 출석률</div></div>
+      <div style="text-align:center;"><div style="font-size:1rem;font-weight:800;color:#16A34A;">${maxRate}%</div><div style="font-size:.65rem;color:var(--gray-400);">최고</div></div>
+      <div style="text-align:center;"><div style="font-size:1rem;font-weight:800;color:#DC2626;">${minRate}%</div><div style="font-size:.65rem;color:var(--gray-400);">최저</div></div>
+      <div style="text-align:center;"><div style="font-size:1rem;font-weight:800;">${months}개월</div><div style="font-size:.65rem;color:var(--gray-400);">기간</div></div>
+    </div>
+    <!-- 바 차트 -->
+    <div style="font-size:.75rem;font-weight:700;color:var(--gray-600);margin-bottom:8px;">월별 출석 현황</div>
+    <div style="display:flex;gap:4px;align-items:flex-end;padding:4px 0;">
+      ${chartHtml || '<div style="font-size:.8rem;color:var(--gray-400);padding:16px;">데이터가 없습니다.</div>'}
+    </div>
+    <!-- 주별 상세 테이블 -->
+    ${trend.length > 0 ? `
+    <div style="font-size:.75rem;font-weight:700;color:var(--gray-600);margin:12px 0 6px;">주별 상세</div>
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.75rem;">
+      <thead><tr>
+        <th style="padding:5px 8px;background:var(--gray-100);border-radius:4px;text-align:left;">날짜</th>
+        <th style="padding:5px 8px;background:var(--gray-100);text-align:center;">재적</th>
+        <th style="padding:5px 8px;background:var(--gray-100);text-align:center;">출석</th>
+        <th style="padding:5px 8px;background:var(--gray-100);text-align:center;">출석률</th>
+      </tr></thead>
+      <tbody>
+        ${trend.slice().reverse().map(t => {
+          const rc = t.rate >= 70 ? '#16A34A' : t.rate >= 50 ? '#D97706' : '#DC2626';
+          return `<tr>
+            <td style="padding:5px 8px;">${t.date.slice(5,7)*1}/${t.date.slice(8,10)*1}</td>
+            <td style="padding:5px 8px;text-align:center;">${t.enrolled}</td>
+            <td style="padding:5px 8px;text-align:center;">${t.present}</td>
+            <td style="padding:5px 8px;text-align:center;color:${rc};font-weight:700;">${t.rate}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>` : ''}`;
+}
+
 async function initAttstatView() {
   const role = currentUser ? currentUser.role : '';
   const isAdmin      = role === 'admin';
@@ -3894,10 +4114,28 @@ async function initAttstatView() {
   if (isAdmin) {
     _attstatMode = 'student';
     setAttstatMode('student');
+    loadWeeklyBriefing(); // 교역자용 브리핑 로드
   } else if (isLeadership) {
     _attstatMode = 'teacher';
-    if (classBar) classBar.style.display = 'none';
-    await _loadAttstatData('__teachers__');
+    // 리더십 겸 담임 여부 확인
+    const myClass = currentUser.classGroup || '';
+    const myClasses = myClass.split(',').map(c=>c.trim()).filter(c=>c);
+    const isLeaderAndTeacher = myClasses.length > 0;
+
+    if (tabBar) tabBar.style.display = isLeaderAndTeacher ? 'flex' : 'none';
+
+    if (isLeaderAndTeacher) {
+      // 탭 버튼 텍스트 업데이트
+      const tabStudent = document.getElementById('attstatTabStudent');
+      if (tabStudent) tabStudent.textContent = '📚 ' + myClasses.join(', ') + ' 현황';
+      document.getElementById('attstatTabStudent').classList.remove('active');
+      document.getElementById('attstatTabTeacher').classList.add('active');
+      if (classBar) classBar.style.display = 'none';
+      await _loadAttstatData('__teachers__');
+    } else {
+      if (classBar) classBar.style.display = 'none';
+      await _loadAttstatData('__teachers__');
+    }
   } else {
     // 교사: 담당 반 고정
     _attstatMode = 'student';
@@ -3914,7 +4152,8 @@ async function initAttstatView() {
 
 async function setAttstatMode(mode) {
   _attstatMode = mode;
-  const isAdmin = currentUser && currentUser.role === 'admin';
+  const isAdmin      = currentUser && currentUser.role === 'admin';
+  const isLeadership = currentUser && currentUser.role === 'leadership';
   document.getElementById('attstatTabStudent').classList.toggle('active', mode === 'student');
   document.getElementById('attstatTabTeacher').classList.toggle('active', mode === 'teacher');
 
@@ -3926,14 +4165,21 @@ async function setAttstatMode(mode) {
     await _loadAttstatData('__teachers__');
   } else {
     // 학생 모드: 반 선택
-    if (classBar && isAdmin) classBar.style.display = 'block';
+    if (classBar && (isAdmin || isLeadership)) classBar.style.display = 'block';
     // 반 목록 빌드
     const validSt = ['등록','심방필요'];
-    const classes = [...new Set(allStudents.filter(s=>validSt.includes(s['상태'])).map(s=>s['학년-반']))]
+    const allClasses = [...new Set(allStudents.filter(s=>validSt.includes(s['상태'])).map(s=>s['학년-반']))]
       .sort((a,b)=>_attstatClassOrder(a).localeCompare(_attstatClassOrder(b)));
+
+    // 리더십 겸 담임: 담당 반만 선택 가능
+    const myClass2 = currentUser ? (currentUser.classGroup || '') : '';
+    const myClasses2 = myClass2.split(',').map(c=>c.trim()).filter(c=>c);
+    const classes = (isLeadership && myClasses2.length) ? myClasses2 : allClasses;
+
     if (classEl) {
-      classEl.innerHTML = '<option value="">전체 (반별)</option>' +
-        classes.map(c=>`<option value="${c}">${c}</option>`).join('');
+      const allOpt = (isAdmin) ? '<option value="">전체 (반별)</option>' : '';
+      classEl.innerHTML = allOpt + classes.map(c=>`<option value="${c}">${c}</option>`).join('');
+      if (isLeadership && myClasses2.length) classEl.value = myClasses2[0];
     }
     await _loadAttstatData(classEl ? classEl.value : '');
   }
@@ -4820,11 +5066,20 @@ function renderRecords() {
 
       const classHtml = orderedClasses.map(cls => {
         const stuInClass = classGroups[cls];
+        // 반 라벨을 명단 왼쪽 사이드에 세로로 표시
+        const shortCls = cls.replace(grade,'').trim() || cls; // 학년 부분 제거 후 '1반' 등만
         return `
-          <div style="background:#F8FAFF;border-left:2px solid var(--primary);padding:4px 10px;border-radius:3px;margin:6px 0 3px 8px;font-size:.74rem;font-weight:700;color:#3B5BDB;display:flex;align-items:center;gap:6px;">
-            <span>${cls}</span><span style="color:var(--gray-400);font-weight:500;">${stuInClass.length}명</span>
-          </div>
-          ${stuInClass.map(_studentCard).join('')}`;
+          <div style="display:flex;margin:4px 0 2px;">
+            <div style="writing-mode:vertical-rl;text-orientation:mixed;background:var(--primary);color:#fff;
+                        font-size:.72rem;font-weight:800;padding:8px 5px;border-radius:4px 0 0 4px;
+                        min-height:40px;display:flex;align-items:center;justify-content:center;
+                        flex-shrink:0;letter-spacing:.1em;cursor:default;" title="${cls}">
+              ${shortCls}
+            </div>
+            <div style="flex:1;border:1.5px solid var(--primary-lt);border-left:none;border-radius:0 4px 4px 0;padding:4px 6px;overflow:hidden;">
+              ${stuInClass.map(_studentCard).join('')}
+            </div>
+          </div>`;
       }).join('');
 
       const totalCount = gradeStudents.length;
