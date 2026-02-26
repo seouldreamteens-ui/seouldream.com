@@ -1204,7 +1204,6 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <button class="btn btn-primary btn-sm" onclick="openAddStudentModal(true)">+ 직접 등록</button>
       </div>
     </div>
-    </div>
 
     <!-- 정렬 드롭다운 -->
     <div class="sort-dropdown-wrap" id="sortDropdownWrap">
@@ -1529,7 +1528,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwVMDuWha6fWR_QG3wzdlmY_jDRYEueHFDPp_1cF7S_j30vjcKukSYhtkE0iS5Td5ntYg/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxfbmBxl0DJy4VJZmuVzmJqYg7UDrca3lltG7xtRJxIEK2L88qiMw1tiPlk8EhmXQfcIA/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -1553,16 +1552,82 @@ const ADMIN_NAMES = ['문현철', '장수산나', '마혁수', '김정로', '최
 const APP_SESSION_VERSION = 'v2.0';
 
 // ── 사용자별 비밀번호 (localStorage: pw_이름) ─────────────────
-// 각 기기에 저장. 기본값 '1234'
-function getUserPassword(name) {
-  try { return localStorage.getItem('pw_' + name) || '1234'; } catch(e) { return '1234'; }
+// ── 비밀번호 관리 (GAS 서버 저장 → localStorage 폴백 → 기본 '1234') ──
+// 인메모리 캐시 (세션 중 GAS 없이도 동작 / 데모 모드)
+const _pwCache = {};  // { name: pw }
+
+function _localGetPw(name) {
+  if (_pwCache[name]) return _pwCache[name];
+  try { const v = localStorage.getItem('pw_' + name); if (v) return v; } catch(e) {}
+  return '1234'; // 기본값
 }
-function setUserPassword(name, pw) {
+function _localSetPw(name, pw) {
+  _pwCache[name] = pw;
   try { localStorage.setItem('pw_' + name, pw); } catch(e) {}
 }
-function verifyUserPassword(name, pw) {
-  return pw === getUserPassword(name);
+function _localClearPw(name) {
+  delete _pwCache[name];
+  try { localStorage.removeItem('pw_' + name); } catch(e) {}
 }
+
+/** GAS에서 비밀번호 검증 (localStorage 마이그레이션 포함) */
+async function verifyUserPasswordAsync(name, pw) {
+  if (!GAS_URL) {
+    // 데모 모드: 로컬만 사용
+    return pw === _localGetPw(name);
+  }
+  try {
+    const r = await callGAS('verifyPassword', { name, pw });
+    if (r && r.success) {
+      if (r.data.match) return true;
+      // GAS 불일치지만 GAS에 커스텀 비밀번호 없는 경우 → localStorage 체크
+      if (!r.data.hasCustomPw) {
+        const localPw = _localGetPw(name);
+        if (localPw !== '1234' && pw === localPw) {
+          // localStorage에 있는 비밀번호로 맞음 → GAS에 자동 동기화
+          callGAS('setPassword', { name, pw }).catch(() => {});
+          return true;
+        }
+      }
+      return false;
+    }
+  } catch(e) {
+    console.warn('verifyPassword GAS 오류, 로컬 폴백:', e);
+  }
+  // GAS 연결 실패 → 로컬로만 검증
+  return pw === _localGetPw(name);
+}
+
+/** 비밀번호 변경 (GAS + 로컬 동시 저장) */
+async function setUserPasswordAsync(name, pw) {
+  _localSetPw(name, pw); // 즉시 로컬 저장
+  if (!GAS_URL) return true;
+  try {
+    const r = await callGAS('setPassword', { name, pw });
+    return r && r.success;
+  } catch(e) {
+    console.warn('setPassword GAS 오류 (로컬만 저장됨):', e);
+    return false;
+  }
+}
+
+/** 비밀번호 초기화 (admin 전용) */
+async function resetUserPasswordAsync(name) {
+  _localClearPw(name);
+  if (!GAS_URL) return true;
+  try {
+    const r = await callGAS('resetPassword', { name });
+    return r && r.success;
+  } catch(e) {
+    console.warn('resetPassword GAS 오류:', e);
+    return false;
+  }
+}
+
+// 하위 호환 동기 버전 (로컬 폴백)
+function getUserPassword(name) { return _localGetPw(name); }
+function setUserPassword(name, pw) { _localSetPw(name, pw); }
+function verifyUserPassword(name, pw) { return pw === _localGetPw(name); }
 function isAdminName(name) {
   return ADMIN_NAMES.includes(name);
 }
@@ -1875,10 +1940,7 @@ const _demo = {
     {교사ID:'T024',이름:'새친구선생',['담당 학년-반']:'',연락처:'010-0001-0003',구분:'새친구'},
     {교사ID:'T025',이름:'리더십선생',['담당 학년-반']:'',연락처:'010-0001-0004',구분:'리더십'}
   ],
-  newbies: [
-    {학생ID:'NB001',이름:'홍길동','1주차날짜':'01.05','1주차출결':'출석','2주차날짜':'01.12','2주차출결':'출석','3주차날짜':'01.19','3주차출결':'출석','4주차날짜':'','4주차출결':'',반배정완료여부:'FALSE'},
-    {학생ID:'NB002',이름:'이영희','1주차날짜':'01.12','1주차출결':'출석','2주차날짜':'01.19','2주차출결':'출석','3주차날짜':'','3주차출결':'','4주차날짜':'','4주차출결':'',반배정완료여부:'FALSE'},
-  ],
+  newbies: [],  // 새친구 없음
   // newbie cross-ref in students (auto-synced)
   _newbieStudents: [
     {학생ID:'NB001',이름:'홍길동',['학년-반']:'새친구',담임교사:'',성별:'',나이:'',생년월일:'',본인연락처:'',학부모연락처:'',상태:'새친구',주소:''},
@@ -2204,14 +2266,22 @@ async function checkLoginName() {
 }
 
 // ── STEP 2: 비밀번호 확인 (전체 사용자 공통) ────────────────
-function doLoginWithPw() {
+async function doLoginWithPw() {
   clearLoginError();
   const name = document.getElementById('loginName').value.trim();
   const pw   = document.getElementById('loginPw').value;
 
   if (!pw) { showLoginError('비밀번호를 입력해주세요.'); return; }
 
-  if (!verifyUserPassword(name, pw)) {
+  // 로그인 버튼 비활성화 (중복 클릭 방지)
+  const loginBtn = document.querySelector('#loginStep2 .btn-primary');
+  if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = '확인 중…'; }
+
+  const match = await verifyUserPasswordAsync(name, pw);
+
+  if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '로그인 →'; }
+
+  if (!match) {
     showLoginError('비밀번호가 올바르지 않습니다.');
     document.getElementById('loginPw').value = '';
     document.getElementById('loginPw').focus();
@@ -2220,7 +2290,8 @@ function doLoginWithPw() {
 
   // 비밀번호 일치 → 역할 결정 후 로그인
   const isAdmin = isAdminName(name);
-  const teacher = allTeachers.find(t => t['이름'] === name);
+  const normName = name.replace(/\s/g,'');
+  const teacher = allTeachers.find(t => String(t['이름']||'').replace(/\s/g,'') === normName);
   const isAdminByRole = teacher && hasRole(teacher, ADMIN_ROLES);
 
   if (isAdmin || isAdminByRole) {
@@ -2303,7 +2374,7 @@ function openChangePwModal() {
   openModal('changePwModal');
 }
 
-function submitChangePw() {
+async function submitChangePw() {
   const name    = currentUser ? currentUser.name : '';
   const cur     = document.getElementById('pwCurrent').value;
   const nw      = document.getElementById('pwNew').value;
@@ -2311,13 +2382,21 @@ function submitChangePw() {
   const errEl   = document.getElementById('pwChangeError');
   const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
 
-  if (!verifyUserPassword(name, cur)) { showErr('현재 비밀번호가 올바르지 않습니다.'); return; }
-  if (nw.length < 4)                   { showErr('새 비밀번호는 4자 이상이어야 합니다.'); return; }
-  if (nw !== confirm)                  { showErr('새 비밀번호가 일치하지 않습니다.'); return; }
+  if (nw.length < 4)  { showErr('새 비밀번호는 4자 이상이어야 합니다.'); return; }
+  if (nw !== confirm) { showErr('새 비밀번호가 일치하지 않습니다.'); return; }
 
-  setUserPassword(name, nw);
+  // 현재 비밀번호 검증 (async)
+  const match = await verifyUserPasswordAsync(name, cur);
+  if (!match) { showErr('현재 비밀번호가 올바르지 않습니다.'); return; }
+
+  // 새 비밀번호 저장 (GAS + 로컬)
+  const saveBtn = document.querySelector('#changePwModal .btn-primary');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
+  await setUserPasswordAsync(name, nw);
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '변경하기'; }
+
   closeModal('changePwModal');
-  showToast('✅ 비밀번호가 변경되었습니다!', 'success');
+  showToast('✅ 비밀번호가 변경되었습니다! (모든 기기에 적용)', 'success');
 }
 
 function showLoginError(msg) {
@@ -2417,14 +2496,49 @@ function doLogout() {
 // ══════════════════════════════════════════
 async function init() {
   allSundays = getSundays2026();
-  filterMonth = new Date().getMonth() + 1; // 이달 생일 기본 세팅
-  sermonWeekIdx = findNearestSundayIdx();   // 이번 주 말씀 초기 세팅
-  await Promise.all([loadStudents(), loadTeachers(), loadNewbies()]);
+  filterMonth = new Date().getMonth() + 1;
+  sermonWeekIdx = findNearestSundayIdx();
+  // 학생/교사/새친구 + 공지/사역일정/설교를 동시에 로드
+  await Promise.all([
+    loadStudents(), loadTeachers(), loadNewbies(),
+    _preloadCalloutData()  // 공지·사역일정 GAS에서 미리 로드
+  ]);
   setupAttendanceDateSelect();
   renderDashboard();
   renderRecords();
   renderNewbieList();
   loadAttendanceStats();
+  // 현재 주 설교 데이터 GAS에서 비동기 로드 (UI 후에 업데이트)
+  _loadSermonFromGAS();
+}
+
+// 공지·사역일정 GAS 미리 로드 (캐시에 저장)
+async function _preloadCalloutData() {
+  if (!GAS_URL) return;
+  try {
+    const keys = ['notices', 'schedules'];
+    await Promise.all(keys.map(async k => {
+      const r = await callGAS('getAppData', { key: k });
+      if (r && r.success && Array.isArray(r.data)) {
+        _calloutCache[k] = r.data;
+        try { sessionStorage.setItem('callout_' + k, JSON.stringify(r.data)); } catch(e) {}
+      }
+    }));
+  } catch(e) { console.warn('_preloadCalloutData 오류:', e); }
+}
+
+// 현재 주 설교 GAS에서 로드 후 렌더링
+async function _loadSermonFromGAS() {
+  if (!GAS_URL) return;
+  try {
+    const dateStr = allSundays[sermonWeekIdx];
+    if (!dateStr) return;
+    const r = await callGAS('getAppData', { key: 'sermon_' + dateStr });
+    if (r && r.success && r.data && typeof r.data === 'object' && Object.keys(r.data).length > 0) {
+      try { localStorage.setItem('sermon_' + dateStr, JSON.stringify(r.data)); } catch(e) {}
+      renderSermon(); // GAS 데이터로 재렌더링
+    }
+  } catch(e) { console.warn('_loadSermonFromGAS 오류:', e); }
 }
 
 // ── GAS 연결 여부와 상관없이 데이터 로드 (실패 시 데모 폴백) ─
@@ -2456,14 +2570,103 @@ async function loadNewbies()  { await _loadWithFallback('getNewbies',  allNewbie
 // ══════════════════════════════════════════
 
 // 데이터 저장소 (sessionStorage 활용)
+// ── 공지·사역일정 데이터 로드 (GAS 앱데이터 → sessionStorage 캐시) ──
+const _calloutCache = {}; // { key: data } 세션 내 캐시
+
+async function loadCalloutDataAsync(key) {
+  if (_calloutCache[key] !== undefined) return _calloutCache[key];
+  // sessionStorage 캐시 우선
+  try {
+    const cached = sessionStorage.getItem('callout_' + key);
+    if (cached) { _calloutCache[key] = JSON.parse(cached); return _calloutCache[key]; }
+  } catch(e) {}
+  // GAS에서 로드
+  if (GAS_URL) {
+    try {
+      const r = await callGAS('getAppData', { key });
+      if (r && r.success && Array.isArray(r.data)) {
+        _calloutCache[key] = r.data;
+        try { sessionStorage.setItem('callout_' + key, JSON.stringify(r.data)); } catch(e) {}
+        return r.data;
+      }
+    } catch(e) { console.warn('loadCalloutDataAsync GAS 오류:', e); }
+  }
+  // 로컬 폴백
+  try {
+    const local = sessionStorage.getItem(key) || sessionStorage.getItem('callout_' + key);
+    if (local) return JSON.parse(local);
+  } catch(e) {}
+  return [];
+}
+
 function loadCalloutData(key) {
-  try { return JSON.parse(sessionStorage.getItem(key) || '[]'); } catch(e) { return []; }
+  // 동기 폴백: 캐시 또는 sessionStorage
+  if (_calloutCache[key] !== undefined) return _calloutCache[key];
+  try { return JSON.parse(sessionStorage.getItem('callout_' + key) || sessionStorage.getItem(key) || '[]'); } catch(e) { return []; }
 }
 function saveCalloutData(key, arr) {
-  try { sessionStorage.setItem(key, JSON.stringify(arr)); } catch(e) {}
+  // 즉시 캐시 업데이트
+  _calloutCache[key] = arr;
+  try { sessionStorage.setItem('callout_' + key, JSON.stringify(arr)); } catch(e) {}
+  // GAS에 비동기 저장
+  if (GAS_URL) {
+    callGAS('setAppData', { key, value: arr }).catch(e => console.warn('saveCalloutData GAS 오류:', e));
+  }
 }
 
 // 콜아웃 열기/닫기 토글
+
+// ── 교역자 전용: 타인 비밀번호 초기화 ─────────────────────────
+async function adminResetPassword(targetName) {
+  if (!currentUser || currentUser.role !== 'admin') {
+    showToast('교역자만 비밀번호를 초기화할 수 있습니다.', 'error');
+    return;
+  }
+  if (!confirm(`"${targetName}" 님의 비밀번호를 1234로 초기화하시겠습니까?`)) return;
+
+  const ok = await resetUserPasswordAsync(targetName);
+  if (ok) {
+    showToast(`✅ "${targetName}" 비밀번호가 1234로 초기화되었습니다.`, 'success');
+  } else {
+    showToast('초기화 중 오류가 발생했습니다.', 'error');
+  }
+}
+
+// 교역자 홈 → 설정에서 전체 초기화 목록
+function openPwResetPanel() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  let modal = document.getElementById('pwResetPanel');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.id = 'pwResetPanel';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal('pwResetPanel'); });
+  }
+  const list = allTeachers.map(t => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100);">
+      <span style="flex:1;font-size:.88rem;font-weight:600;">${t['이름']}</span>
+      <span style="font-size:.72rem;color:var(--gray-400);">${t['구분']||''}</span>
+      <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger);"
+        onclick="adminResetPassword('${t['이름']}')">초기화</button>
+    </div>`).join('');
+
+  modal.innerHTML = `
+    <div class="modal" style="max-width:380px;max-height:80vh;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <div class="modal-title">🔑 비밀번호 초기화 (교역자 전용)</div>
+        <button class="modal-close" onclick="closeModal('pwResetPanel')">✕</button>
+      </div>
+      <div style="padding:10px 16px;background:#FEF9C3;font-size:.78rem;color:#92400E;border-bottom:1px solid var(--gray-100);">
+        ⚠️ 초기화하면 해당 선생님의 비밀번호가 <b>1234</b>로 변경됩니다.
+      </div>
+      <div class="modal-body" style="overflow-y:auto;flex:1;">${list}</div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" style="flex:1" onclick="closeModal('pwResetPanel')">닫기</button>
+      </div>
+    </div>`;
+  openModal('pwResetPanel');
+}
 function toggleCallout(id) {
   document.getElementById(id).classList.toggle('open');
 }
@@ -2788,6 +2991,8 @@ function saveSermon() {
   };
   // localStorage에 주일별로 영구 저장 (탭 닫아도 유지)
   try { localStorage.setItem('sermon_' + dateStr, JSON.stringify(data)); } catch(e) {}
+  // GAS에도 저장 (공유)
+  if (GAS_URL) callGAS('setAppData', { key: 'sermon_' + dateStr, value: data }).catch(()=>{});
   renderSermon();
   showToast('저장되었습니다.', 'success');
 }
@@ -2796,6 +3001,25 @@ function saveSermon() {
 function loadSermonData(dateStr) {
   try { return JSON.parse(localStorage.getItem('sermon_' + dateStr) || 'null') || {}; }
   catch(e) { return {}; }
+}
+
+// GAS에서 설교 데이터 로드 (비동기)
+async function loadSermonDataAsync(dateStr) {
+  // localStorage 우선 (빠름)
+  let local = {};
+  try { local = JSON.parse(localStorage.getItem('sermon_' + dateStr) || 'null') || {}; } catch(e) {}
+  if (local && Object.keys(local).length > 0) return local;
+  // GAS에서 로드
+  if (GAS_URL) {
+    try {
+      const r = await callGAS('getAppData', { key: 'sermon_' + dateStr });
+      if (r && r.success && r.data && typeof r.data === 'object' && Object.keys(r.data).length > 0) {
+        try { localStorage.setItem('sermon_' + dateStr, JSON.stringify(r.data)); } catch(e) {}
+        return r.data;
+      }
+    } catch(e) { console.warn('loadSermonDataAsync GAS 오류:', e); }
+  }
+  return {};
 }
 
 // ══════════════════════════════════════════
@@ -3798,16 +4022,30 @@ async function syncFormNewbies() {
   btn.disabled = true;
   btn.textContent = '⏳ 새로고침 중...';
 
+  if (!GAS_URL) {
+    showToast('데모 모드: GAS_URL 연결 필요', 'error');
+    btn.disabled = false; btn.textContent = '🔄 새친구 새로고침';
+    return;
+  }
+
   try {
     const r = await callGAS('syncFormResponses', {});
     if (r.success) {
       const added = r.data && r.data.added ? r.data.added : 0;
-      await loadStudents();
+      const sheetName = r.data && r.data.sheetName ? r.data.sheetName : '';
+      const totalRows = r.data && r.data.totalRows ? r.data.totalRows : 0;
       await loadNewbies();
       renderNewbieList();
-      showToast(added > 0 ? `${added}명의 새친구가 추가되었습니다.` : '새로운 응답이 없습니다.', added > 0 ? 'success' : '');
+      const msg = added > 0
+        ? `✅ ${added}명 추가됨 (시트: ${sheetName}, 총 ${totalRows}건)`
+        : `시트 "${sheetName}" 연결됨. 새 응답 없음 (총 ${totalRows}건)`;
+      showToast(msg, added > 0 ? 'success' : '');
     } else {
-      showToast(r.message || '동기화 실패', 'error');
+      // 실패 시 상세 오류 + 진단 안내
+      const errMsg = r.message || '동기화 실패';
+      showToast('❌ ' + errMsg.split('\n')[0], 'error');
+      // 진단 모달 표시
+      _showFormDiagnoseResult(errMsg);
     }
   } catch(e) {
     showToast('동기화 오류: ' + e.message, 'error');
@@ -3815,6 +4053,24 @@ async function syncFormNewbies() {
     btn.disabled = false;
     btn.textContent = '🔄 새친구 새로고침';
   }
+}
+
+// 폼 연동 실패 시 진단 결과 표시
+async function _showFormDiagnoseResult(errMsg) {
+  let diagInfo = errMsg;
+  try {
+    const r = await callGAS('diagnoseFormSheet', {});
+    if (r.success) {
+      const { sheets, formCandidates } = r.data;
+      const sheetList = sheets.map(s => `• ${s.name} (${s.rows}행)`).join('\n');
+      const candidates = formCandidates.length > 0
+        ? '\n\n📋 폼 응답 후보 시트:\n' + formCandidates.map(c => `• ${c.name}\n  헤더: ${c.headers.slice(0,4).join(', ')}`).join('\n')
+        : '\n\n⚠️ 타임스탬프 열이 있는 시트를 찾지 못했습니다.';
+      diagInfo = '현재 스프레드시트 시트 목록:\n' + sheetList + candidates
+        + '\n\n💡 해결: Code.gs 상단의 FORM_RESPONSE_SHEET = \'설문지 응답 1\' 를 실제 시트 이름으로 변경 후 재배포';
+    }
+  } catch(e) {}
+  alert('🔍 폼 연동 진단\n\n' + diagInfo);
 }
 
 // ── 정렬 드롭다운 ──────────────────────────
@@ -4946,6 +5202,14 @@ document.addEventListener('click', e => {
 // 시작 — sessionStorage 자동 로그인 시도
 // ══════════════════════════════════════════
 (async function startup() {
+  // ── 비밀번호 강제 초기화 목록 (관리자가 직접 지정)
+  // 이 배열에 이름을 넣으면 앱 로드 시 해당 사용자 비밀번호가 1234로 초기화됩니다
+  const _FORCE_RESET_PASSWORDS = ['최광식'];
+  _FORCE_RESET_PASSWORDS.forEach(n => {
+    _localClearPw(n); // localStorage 삭제
+    if (GAS_URL) callGAS('resetPassword', { name: n }).catch(() => {}); // GAS 시트도 삭제
+  });
+
   // ── 항상 로그인 화면을 먼저 보여줌 (기본값: display:flex)
   document.getElementById('loginScreen').style.display = 'flex';
 
@@ -5003,4 +5267,4 @@ document.addEventListener('click', e => {
 })();
 </script>
 </body>
-</html>ㅁ
+</html>
