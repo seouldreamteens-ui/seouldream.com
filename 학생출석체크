@@ -106,7 +106,7 @@
 // ════════════════════════════════════════════════════════
 // 설정
 // ════════════════════════════════════════════════════════
-const GAS_URL = ''; // ← 교사용 앱과 동일한 GAS 배포 URL 붙여넣기
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbx3dUUdcf9U8r1S_o0DtOvuL_LkbtCxwo_mFZG17BWKD-64F1bRHyeOqCxC3f2Vd_rRSw/exec'; // ← 교사용 앱과 동일한 GAS 배포 URL 붙여넣기
 
 // 앱 상태
 let state = {
