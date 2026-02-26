@@ -599,7 +599,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   padding:0 16px;
 }
 .callout.open .callout-body{
-  max-height:800px;
+  max-height:3000px;
   padding:0 16px 14px;
 }
 /* 공지사항 — 파란 계열 */
@@ -765,7 +765,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 }
 .sermon-field-value{
   font-size:.9rem;font-weight:500;color:var(--gray-800);
-  line-height:1.5;white-space:pre-wrap;
+  line-height:1.6;white-space:pre-wrap;
+  word-break:break-word;
+  overflow-wrap:break-word;
 }
 .sermon-field-value.empty-val{
   color:var(--gray-400);font-style:italic;font-weight:400;
@@ -1139,7 +1141,13 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     </div>
 
     <!-- 생일 월별 필터 -->
-    <div class="section-title section-title-birthday">🎂 이달의 생일</div>
+    <div class="section-title section-title-birthday"
+         onclick="toggleBirthdaySection()"
+         style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+      <span>🎂 이달의 생일</span>
+      <span id="birthdayChevron" style="font-size:.8rem;transition:transform .25s;">▼</span>
+    </div>
+    <div id="birthdayCollapsible" style="overflow:hidden;transition:max-height .3s ease;max-height:1200px;">
     <div class="month-filter" id="monthFilter">
       <button class="month-btn active" data-month="0">전체</button>
       <button class="month-btn" data-month="1">1월</button><button class="month-btn" data-month="2">2월</button>
@@ -1150,6 +1158,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
       <button class="month-btn" data-month="11">11월</button><button class="month-btn" data-month="12">12월</button>
     </div>
     <div id="studentList"></div>
+    </div><!-- /birthdayCollapsible -->
 
 
   </section>
@@ -1239,6 +1248,15 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <button class="sort-menu-item" data-sort="weeks_desc" onclick="setNewbieSort('weeks_desc')">
           <span class="sort-dir-icon">↓</span> 많은 순
           <span class="sort-check">✓</span>
+        </button>
+        <div class="sort-group-label">등록날짜</div>
+        <button class="sort-menu-item" data-sort="date_desc" onclick="setNewbieSort('date_desc')">
+          <span class="sort-dir-icon">↓</span> 최신 순 (기본)
+          <span class="sort-check" id="nbschk_date_desc">✓</span>
+        </button>
+        <button class="sort-menu-item" data-sort="date_asc" onclick="setNewbieSort('date_asc')">
+          <span class="sort-dir-icon">↑</span> 오래된 순
+          <span class="sort-check" id="nbschk_date_asc">✓</span>
         </button>
       </div>
     </div>
@@ -1421,6 +1439,10 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <input class="form-control" id="sParentMother" placeholder="010-0000-0000">
       </div>
       <div class="form-group">
+        <label class="form-label">학교</label>
+        <input class="form-control" id="sSchool" placeholder="예) OO중학교">
+      </div>
+      <div class="form-group">
         <label class="form-label">주소</label>
         <input class="form-control" id="sAddress" placeholder="예) 서울시 강남구 역삼동">
       </div>
@@ -1528,7 +1550,7 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 // ══════════════════════════════════════════
 // 상태 & 설정
 // ══════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxfbmBxl0DJy4VJZmuVzmJqYg7UDrca3lltG7xtRJxIEK2L88qiMw1tiPlk8EhmXQfcIA/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbz_EkireNTjDgNNKMK6A-0dMWOP9dOj7daKQewZ3CF91girr5masnnMNszgdcGzx-e_7w/exec'; // ← GAS 배포 후 웹앱 URL 붙여넣기 (예: https://script.google.com/macros/s/AKf.../exec)
 let allStudents = [];
 let allTeachers = [];
 let allNewbies  = [];
@@ -1656,7 +1678,7 @@ const ROLE_TABS = {
 };
 
 // 새친구 정렬 상태
-let newbieSortKey = 'name_asc'; // 'name_asc'|'name_desc'|'age_asc'|'age_desc'|'weeks_asc'|'weeks_desc'
+let newbieSortKey = 'date_desc'; // 기본: 최신 등록 순 // 'name_asc'|'name_desc'|'age_asc'|'age_desc'|'weeks_asc'|'weeks_desc'
 let _locallyModified = new Set(); // 사용자가 직접 수정한 학생 ID (폴링 시 덮어쓰기 방지)
 let _pollInterval = null;          // 실시간 폴링 interval 핸들
 
@@ -2666,6 +2688,17 @@ function openPwResetPanel() {
       </div>
     </div>`;
   openModal('pwResetPanel');
+}
+
+// ── 홈 탭 생일 섹션 접기/펼치기 ────────────────────────────
+let _birthdayOpen = true;
+function toggleBirthdaySection() {
+  const el = document.getElementById('birthdayCollapsible');
+  const chevron = document.getElementById('birthdayChevron');
+  if (!el) return;
+  _birthdayOpen = !_birthdayOpen;
+  el.style.maxHeight = _birthdayOpen ? '1200px' : '0';
+  if (chevron) chevron.style.transform = _birthdayOpen ? '' : 'rotate(-90deg)';
 }
 function toggleCallout(id) {
   document.getElementById(id).classList.toggle('open');
@@ -4081,6 +4114,8 @@ const SORT_LABELS = {
   age_desc:  '나이 ↓ 많은 순',
   weeks_asc: '출석 ↑ 적은 순',
   weeks_desc:'출석 ↓ 많은 순',
+  date_asc:  '등록날짜 ↑ 오래된 순',
+  date_desc: '등록날짜 ↓ 최신 순',
 };
 
 function toggleSortMenu() {
@@ -4164,6 +4199,10 @@ function renderNewbieList() {
       const ageA = stuA ? (parseInt(stuA['나이']) || 0) : 0;
       const ageB = stuB ? (parseInt(stuB['나이']) || 0) : 0;
       return asc ? ageA - ageB : ageB - ageA;
+    } else if (field === 'date') {
+      const dA = String(a['등록날짜'] || '');
+      const dB = String(b['등록날짜'] || '');
+      return asc ? dA.localeCompare(dB) : dB.localeCompare(dA);
     }
     return 0;
   });
@@ -4175,7 +4214,8 @@ function renderNewbieList() {
 
   el.innerHTML = active.map(n => {
     // 학생 정보 (학년-반, 성별) 가져오기
-    const stu = allStudents.find(s => s['학생ID'] === n['학생ID']);
+    const stu = n['학생ID'] ? allStudents.find(s => s['학생ID'] === n['학생ID'])
+                              : allStudents.find(s => s['이름'] === n['이름']);
     const grade = stu ? (stu['학년-반'] || '') : '';
     const gender = stu ? (stu['성별'] || '') : '';
     const age = stu ? `만${stu['나이']}세` : '';
@@ -4193,7 +4233,7 @@ function renderNewbieList() {
         <div>
           <div class="newbie-name">
             ${n['이름']}
-            <small style="color:var(--gray-400);font-weight:400;">${n['학생ID']}</small>
+            ${n['등록날짜'] ? `<small style="color:var(--gray-400);font-weight:400;font-size:.7rem;">${n['등록날짜']} 등록</small>` : ''}
             ${grade ? `<span class="badge badge-blue" style="font-size:.65rem;margin-left:4px;">${grade}</span>` : ''}
             ${gender ? `<span class="badge badge-gray" style="font-size:.65rem;">${gender}</span>` : ''}
           </div>
@@ -4202,7 +4242,7 @@ function renderNewbieList() {
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <button class="btn btn-outline btn-sm" onclick="openEditStudentModal('${n['학생ID']}')"
+          <button class="btn btn-outline btn-sm" onclick="openEditNewbieModal('${n['이름']}')"
             style="padding:4px 10px;font-size:.72rem;border-color:var(--gray-200);color:var(--gray-600);">
             ✏️ 수정
           </button>
@@ -4216,20 +4256,20 @@ function renderNewbieList() {
             <input class="mmdd-input" type="text" maxlength="5"
               value="${toMmDd(w.date)}"
               placeholder="MM.DD"
-              onblur="updateNewbieDate('${n['학생ID']}',${i+1},this.value)"
+              onblur="updateNewbieDate('${n['이름']}',${i+1},this.value)"
               oninput="formatMmDdInput(this)">
             <div style="display:flex;gap:4px;margin-top:5px;">
               <button class="check-btn ${w.att === '출석' ? 'present' : 'none'}"
-                onclick="setNewbieAtt('${n['학생ID']}',${i+1},'출석',this)">출석</button>
+                onclick="setNewbieAtt('${n['이름']}',${i+1},'출석',this)">출석</button>
               <button class="check-btn ${w.att === '결석' ? 'absent' : 'none'}"
-                onclick="setNewbieAtt('${n['학생ID']}',${i+1},'결석',this)">결석</button>
+                onclick="setNewbieAtt('${n['이름']}',${i+1},'결석',this)">결석</button>
             </div>
           </div>`).join('')}
       </div>
       ${allDone ? `
       <div class="assign-section">
         <div style="font-size:.85rem;font-weight:600;margin-bottom:8px;color:var(--primary);">🎉 4주 출석 완료! 정규 반에 배정하세요.</div>
-        <button class="btn btn-success btn-sm" onclick="openAssignModal('${n['학생ID']}','${n['이름']}')">정규 반 배정하기 →</button>
+        <button class="btn btn-success btn-sm" onclick="openAssignModal('${n['이름']}','${n['이름']}')">정규 반 배정하기 →</button>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -4247,20 +4287,23 @@ function formatMmDdInput(el) {
 
 async function updateNewbieDate(id, week, rawVal) {
   const date = parseMmDd(rawVal);
-  const newbie = allNewbies.find(n => n['학생ID'] === id);
+  // 신규 시트: 이름이 키, 구버전: 학생ID가 키
+  const newbie = allNewbies.find(n => (n['이름'] === id) || (n['학생ID'] === id));
   if (!newbie) return;
   const attKey = `${week}주차출결`;
-  await callGAS('updateNewbieAtt', {studentId:id, weekNum:week, date, status:newbie[attKey]||''});
+  const name = newbie['이름'] || '';
+  await callGAS('updateNewbieAtt', {studentId: newbie['학생ID']||'', name, weekNum:week, date, status:newbie[attKey]||''});
   newbie[`${week}주차날짜`] = date;
 }
 
 async function setNewbieAtt(id, week, status, btn) {
   const dateKey = `${week}주차날짜`;
-  const newbie  = allNewbies.find(n=>n['학생ID']===id);
+  const newbie  = allNewbies.find(n => (n['이름'] === id) || (n['학생ID'] === id));
   if (!newbie) return;
   const date = newbie[dateKey] || '';
   if (!date) { showToast('날짜를 먼저 입력해주세요.','error'); return; }
-  const r = await callGAS('updateNewbieAtt', {studentId:id, weekNum:week, date, status});
+  const name = newbie['이름'] || '';
+  const r = await callGAS('updateNewbieAtt', {studentId: newbie['학생ID']||'', name, weekNum:week, date, status});
   if (r.success) {
     newbie[`${week}주차출결`] = status;
     showToast('저장되었습니다.','success');
@@ -4268,6 +4311,104 @@ async function setNewbieAtt(id, week, status, btn) {
   } else showToast(r.message,'error');
 }
 
+
+// ── 새친구 직접 정보 수정 모달 (이름 기반) ────────────────
+function openEditNewbieModal(name) {
+  // 새친구 데이터
+  const nb = allNewbies.find(n => n['이름'] === name);
+  if (!nb) { showToast('새친구를 찾을 수 없습니다.', 'error'); return; }
+  // 학생 시트에도 있는 경우 (구버전)
+  if (nb['학생ID']) { openEditStudentModal(nb['학생ID']); return; }
+  // 신규 시트: 새친구 정보 편집 모달
+  openNewbieInfoModal(nb);
+}
+
+function openNewbieInfoModal(nb) {
+  let modal = document.getElementById('newbieInfoModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.id = 'newbieInfoModal';
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal('newbieInfoModal'); });
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-header">
+        <div class="modal-title">🌱 새친구 정보 수정</div>
+        <button class="modal-close" onclick="closeModal('newbieInfoModal')">✕</button>
+      </div>
+      <div class="modal-body" style="display:grid;gap:10px;">
+        <input type="hidden" id="nbiName" value="${nb['이름']}">
+        <div class="form-group">
+          <label class="form-label">이름</label>
+          <input class="form-control" id="nbiNameEdit" value="${nb['이름']||''}">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group">
+            <label class="form-label">성별</label>
+            <select class="form-control" id="nbiGender">
+              <option value="남" ${nb['성별']==='남'?'selected':''}>남</option>
+              <option value="여" ${nb['성별']==='여'?'selected':''}>여</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">생년월일</label>
+            <input class="form-control" id="nbiBirth" value="${nb['생년월일']||''}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">본인 연락처</label>
+          <input class="form-control" id="nbiPhone" value="${nb['본인연락처']||''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">학부모 연락처 (부)</label>
+          <input class="form-control" id="nbiParentFather" value="${nb['학부모연락처(부)']||''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">학부모 연락처 (모)</label>
+          <input class="form-control" id="nbiParentMother" value="${nb['학부모연락처(모)']||''}">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" style="flex:1" onclick="closeModal('newbieInfoModal')">취소</button>
+        <button class="btn btn-danger btn-sm" style="flex:1" onclick="deleteNewbieByName('${nb['이름']}')">삭제</button>
+        <button class="btn btn-primary" style="flex:2" onclick="submitNewbieInfoEdit()">저장</button>
+      </div>
+    </div>`;
+  openModal('newbieInfoModal');
+}
+
+async function submitNewbieInfoEdit() {
+  const origName = document.getElementById('nbiName').value;
+  const updates = {
+    origName,
+    name:   document.getElementById('nbiNameEdit').value.trim(),
+    gender: document.getElementById('nbiGender').value,
+    birth:  document.getElementById('nbiBirth').value.trim(),
+    phone:  document.getElementById('nbiPhone').value.trim(),
+    parentFather: document.getElementById('nbiParentFather').value.trim(),
+    parentMother: document.getElementById('nbiParentMother').value.trim(),
+  };
+  const r = await callGAS('updateNewbieInfo', updates);
+  if (r.success) {
+    showToast('저장되었습니다.', 'success');
+    closeModal('newbieInfoModal');
+    await loadNewbies();
+    renderNewbieList();
+  } else showToast(r.message || '저장 실패', 'error');
+}
+
+async function deleteNewbieByName(name) {
+  if (!confirm(`"${name}" 새친구를 삭제하시겠습니까?`)) return;
+  const r = await callGAS('deleteNewbieByName', { name });
+  if (r.success) {
+    showToast('삭제되었습니다.', 'success');
+    closeModal('newbieInfoModal');
+    await loadNewbies();
+    renderNewbieList();
+  } else showToast(r.message || '삭제 실패', 'error');
+}
 function openAssignModal(id, name) {
   document.getElementById('assignStudentId').value = id;
   document.getElementById('assignModal').querySelector('.modal-title').textContent = `${name} - 반 배정`;
@@ -4483,6 +4624,23 @@ function renderRecords() {
 
   filtered = sortStudents(filtered);
   if (!filtered.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📚</div>학생이 없습니다.</div>`; return; }
+
+  // ── 학년별 그룹 헤더 표시 (정렬키가 'class'인 경우) ─
+  if (recSortKey === 'class') {
+    const groups = {};
+    filtered.forEach(s => {
+      const cls = s['학년-반'] || '기타';
+      const key = GRADE_ORDER_REC.find(g => g==='영어반' ? cls.includes('영어반') : cls.startsWith(g)) || '기타';
+      (groups[key] = groups[key] || []).push(s);
+    });
+    const orderedKeys = [...GRADE_ORDER_REC.filter(g => groups[g]), ...(groups['기타'] ? ['기타'] : [])];
+    el.innerHTML = orderedKeys.map(g => `
+      <div style="background:var(--primary-lt);border-left:3px solid var(--primary);padding:6px 12px;border-radius:4px;margin:10px 0 6px;font-size:.78rem;font-weight:800;color:var(--primary);">${g} · ${groups[g].length}명</div>
+      ${groups[g].map(_studentCard).join('')}
+    `).join('');
+    return;
+  }
+
   el.innerHTML = filtered.map(_studentCard).join('');
 }
 
@@ -4675,6 +4833,7 @@ function showStudentDetail(id) {
       ${detailRow('본인연락처', s['본인연락처']||'-')}
       ${detailRow('학부모연락처(부)', s['학부모연락처(부)']||s['학부모연락처']||'-')}
       ${detailRow('학부모연락처(모)', s['학부모연락처(모)']||'-')}
+      ${s['학교'] ? detailRow('학교', s['학교']) : ''}
       ${s['주소'] ? detailRow('주소', s['주소']) : ''}
       ${detailRow('상태', `<span class="badge ${statusBadgeClass(s['상태'])}">${s['상태']}</span>`)}
     </div>`;
@@ -4760,6 +4919,7 @@ function openAddStudentModal(isNewbie=false) {
   document.getElementById('sContact').value = '';
   document.getElementById('sParentFather').value = '';
   document.getElementById('sParentMother').value = '';
+  document.getElementById('sSchool').value = '';
   document.getElementById('sAddress').value = '';
   openModal('studentModal');
 }
@@ -4781,6 +4941,7 @@ function openEditStudentModal(id) {
   document.getElementById('sContact').value = s['본인연락처']||'';
   document.getElementById('sParentFather').value = s['학부모연락처(부)']||s['학부모연락처']||'';
   document.getElementById('sParentMother').value = s['학부모연락처(모)']||'';
+  if (document.getElementById('sSchool')) document.getElementById('sSchool').value = s['학교']||'';
   document.getElementById('sAddress').value = s['주소']||'';
   openModal('studentModal');
 }
@@ -4799,6 +4960,7 @@ async function submitStudent() {
     contact: document.getElementById('sContact').value.trim(),
     parentContactFather: document.getElementById('sParentFather').value.trim(),
     parentContactMother: document.getElementById('sParentMother').value.trim(),
+    school: document.getElementById('sSchool') ? document.getElementById('sSchool').value.trim() : '',
     address: document.getElementById('sAddress').value.trim(),
   };
   if (!payload.name) { showToast('이름을 입력해주세요.', 'error'); return; }
