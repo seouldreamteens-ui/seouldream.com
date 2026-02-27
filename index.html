@@ -1386,6 +1386,27 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div id="recordTeacherList" style="display:none;"></div>
   </section>
 
+  <!-- ─── 교사 교적 탭 ─── -->
+  <section class="view" id="view-teacher_records">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <div class="section-title" style="margin-bottom:0;">👨‍🏫 교사 교적</div>
+      <div style="margin-left:auto;display:flex;gap:6px;">
+        <button class="btn btn-outline btn-sm" onclick="openAddTeacherModal()">+ 교사 등록</button>
+      </div>
+    </div>
+    <!-- 구분 필터 -->
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;" id="teacherRoleFilterBar">
+      <span style="font-size:.72rem;color:var(--gray-400);align-self:center;">구분</span>
+      <button class="filter-tag" id="trf_all" onclick="setTeacherRoleFilter('all')">전체</button>
+      <button class="filter-tag" id="trf_교역자" onclick="setTeacherRoleFilter('교역자')">교역자</button>
+      <button class="filter-tag" id="trf_리더십" onclick="setTeacherRoleFilter('리더십')">리더십</button>
+      <button class="filter-tag" id="trf_담임" onclick="setTeacherRoleFilter('담임')">담임</button>
+      <button class="filter-tag" id="trf_부담임" onclick="setTeacherRoleFilter('부담임')">부담임</button>
+      <button class="filter-tag" id="trf_새친구" onclick="setTeacherRoleFilter('새친구')">새친구</button>
+    </div>
+    <div id="teacherRecordsList"></div>
+  </section>
+
 </main>
 
 <!-- ─── 하단 네비게이션 ─── -->
@@ -1404,6 +1425,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   </button>
   <button class="nav-btn" data-view="records">
     <span class="icon">📋</span>교적
+  </button>
+  <button class="nav-btn" data-view="teacher_records">
+    <span class="icon">👨‍🏫</span>교사교적
   </button>
 </nav>
 
@@ -1617,17 +1641,19 @@ const APP_SESSION_VERSION = 'v2.0';
 const _pwCache = {};  // { name: pw }
 
 function _localGetPw(name) {
-  if (_pwCache[name]) return _pwCache[name];
-  try { const v = localStorage.getItem('pw_' + name); if (v) return v; } catch(e) {}
-  return '1234'; // 기본값
+  if (_pwCache[name] !== undefined) return _pwCache[name];
+  return '1234'; // 기본값 (GAS 미연결 시)
 }
 function _localSetPw(name, pw) {
   _pwCache[name] = pw;
-  try { localStorage.setItem('pw_' + name, pw); } catch(e) {}
+  // localStorage는 사용 안 함 (GAS 시트에 저장)
 }
 function _localClearPw(name) {
   delete _pwCache[name];
-  try { localStorage.removeItem('pw_' + name); } catch(e) {}
+  try {
+    localStorage.removeItem('dreamteens_pw_' + name);
+    localStorage.removeItem('pw_' + name);
+  } catch(e) {}
 }
 
 /** GAS에서 비밀번호 검증 (localStorage 마이그레이션 포함) */
@@ -1638,29 +1664,22 @@ function _localClearPw(name) {
  */
 async function verifyUserPasswordAsync(name, pw) {
   if (!GAS_URL) {
-    // 데모 모드: 로컬만 사용
     return pw === _localGetPw(name);
   }
   try {
     const r = await callGAS('verifyPassword', { name, pw });
     if (r && r.success) {
-      if (r.data.match) return true;
-      // GAS에 커스텀 비밀번호가 등록된 경우 → 무조건 GAS 비밀번호만 허용
-      if (r.data.hasCustomPw) return false;
-      // GAS에 비밀번호 없음(기본 1234) → localStorage 마이그레이션 허용
-      const localPw = _localGetPw(name);
-      if (localPw !== '1234' && pw === localPw) {
-        // localStorage 비밀번호가 맞음 → GAS에 자동 동기화 후 로그인
-        callGAS('setPassword', { name, pw }).catch(() => {});
-        _localClearPw(name); // localStorage 정리
+      if (r.data.match) {
+        // 검증 성공 시 캐시에 저장
+        _pwCache[name] = pw;
         return true;
       }
       return false;
     }
   } catch(e) {
-    console.warn('verifyPassword GAS 오류, 로컬 폴백:', e);
+    console.warn('verifyPassword GAS 오류, 캐시 폴백:', e);
   }
-  // GAS 완전 실패 → 로컬로만 검증
+  // GAS 실패 → 캐시에서만 검증
   return pw === _localGetPw(name);
 }
 
@@ -1715,10 +1734,10 @@ function getTeacherRole(teacher) {
 
 // 역할별 허용 탭
 const ROLE_TABS = {
-  admin:          ['dashboard','attendance','attstat','newbie','records'],
-  leadership:     ['dashboard','attendance','attstat','records'],
-  teacher:        ['dashboard','attendance','attstat'],
-  newbie_teacher: ['dashboard','newbie','attstat'],
+  admin:          ['dashboard','attendance','attstat','newbie','records','teacher_records'],
+  leadership:     ['dashboard','attendance','attstat','records','teacher_records'],
+  teacher:        ['dashboard','attendance','attstat','teacher_records'],
+  newbie_teacher: ['dashboard','newbie','attstat','teacher_records'],
 };
 
 // 새친구 정렬 상태
@@ -2565,10 +2584,16 @@ async function init() {
   filterMonth = new Date().getMonth() + 1;
   sermonWeekIdx = findNearestSundayIdx();
   // 학생/교사/새친구 + 공지/사역일정/설교를 동시에 로드
-  await Promise.all([
-    loadStudents(), loadTeachers(), loadNewbies(),
-    _preloadCalloutData()  // 공지·사역일정 GAS에서 미리 로드
-  ]);
+  // 단일 GAS 호출로 학생+교사+새친구 한번에 로드 (속도 최적화)
+  const _allR = await callGAS('getAllData', {});
+  if (_allR && _allR.success && _allR.data) {
+    allStudents = (_allR.data.students || []).filter(s => s['이름']);
+    allTeachers = (_allR.data.teachers || []).filter(t => t['이름']);
+    allNewbies  = (_allR.data.newbies  || []);
+  } else {
+    await Promise.all([loadStudents(), loadTeachers(), loadNewbies()]);
+  }
+  _preloadCalloutData();  // 공지·사역일정 GAS에서 비동기 로드
   setupAttendanceDateSelect();
   renderDashboard();
   renderRecords();
@@ -2576,6 +2601,8 @@ async function init() {
   loadAttendanceStats();
   // 현재 주 설교 데이터 GAS에서 비동기 로드 (UI 후에 업데이트)
   _loadSermonFromGAS();
+  // 교역자 반배정 알림 체크 (5초 후)
+  setTimeout(checkNewbieAssignAlert, 5000);
 }
 
 // 공지·사역일정 GAS 미리 로드 (캐시에 저장)
@@ -2735,6 +2762,23 @@ function openPwResetPanel() {
 }
 
 // ── 홈 탭 생일 섹션 접기/펼치기 ────────────────────────────
+// ── 범용 섹션 접기/펼치기 ──────────────────────────────────
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  const chev = document.getElementById('chev_' + id);
+  if (!el) return;
+  const open = el.style.maxHeight !== '0px' && el.style.maxHeight !== '';
+  if (open) {
+    el.style.maxHeight = '0px';
+    el.style.overflow  = 'hidden';
+    if (chev) chev.style.transform = 'rotate(-90deg)';
+  } else {
+    el.style.maxHeight = '3000px';
+    el.style.overflow  = 'visible';
+    if (chev) chev.style.transform = '';
+  }
+}
+
 let _birthdayOpen = true;
 function toggleBirthdaySection() {
   const outer = document.getElementById('birthdayCollapsible');
@@ -3106,6 +3150,19 @@ async function loadSermonDataAsync(dateStr) {
 // 대시보드
 // ══════════════════════════════════════════
 // ── 홈 통계 카드 클릭 → 해당 상태 학생 명단 모달 ──────────────
+function switchTab(view) {
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  const btn = document.querySelector(`.nav-btn[data-view="${view}"]`);
+  const viewEl = document.getElementById('view-' + view);
+  if (btn) btn.classList.add('active');
+  if (viewEl) viewEl.classList.add('active');
+  if (view === 'newbie') renderNewbieList();
+  if (view === 'attstat') initAttstatView();
+  if (view === 'records') switchRecordTab(currentRecordTab || 'students');
+  if (view === 'teacher_records') renderTeacherRecordsPage();
+}
+
 function showStatusList(status) {
   let students;
   let title;
@@ -3113,8 +3170,9 @@ function showStatusList(status) {
     students = allStudents.filter(s => s['상태'] === '등록');
     title = '✅ 등록 학생';
   } else if (status === '새친구') {
-    students = allStudents.filter(s => s['상태'] === '새친구' || s['상태'] === '새 친구');
-    title = '🌱 새친구';
+    // 새친구 명단 팝업 표시
+    students = allNewbies.filter(n => n['반배정완료여부'] !== 'TRUE' && n['반배정완료여부'] !== true);
+    title = '👋 새친구 명단';
   } else if (status === '장결자') {
     students = allStudents.filter(s => s['상태'] === '장결자');
     title = '⚠️ 장결자';
@@ -3155,7 +3213,11 @@ function showStatusList(status) {
     }
     return '99_' + cls;
   }
-  const sorted = [...students].sort((a,b) => gradeKey(a['학년-반']).localeCompare(gradeKey(b['학년-반'])));
+  // 새친구는 이름 기준 정렬, 일반 학생은 학년-반 기준
+  const isNewbieList = (status === '새친구');
+  const sorted = isNewbieList
+    ? [...students].sort((a,b) => (a['이름']||'').localeCompare(b['이름']||'','ko'))
+    : [...students].sort((a,b) => gradeKey(a['학년-반']).localeCompare(gradeKey(b['학년-반'])));
 
   function _renderStatusList(list) {
     const body = document.getElementById('statusListBody');
@@ -3164,6 +3226,7 @@ function showStatusList(status) {
       return;
     }
     body.innerHTML = list.map(s => {
+      const isNewbie = isNewbieList;
       // 나이 계산
       let age = s['나이'] || '';
       if (!age && s['생년월일']) {
@@ -3176,16 +3239,29 @@ function showStatusList(status) {
           age=a;
         }
       }
+      // 새친구 추가 정보
+      const weeks = isNewbie ? (() => {
+        let w = 0;
+        for (let i=1;i<=4;i++) if (s[i+'주차출결']==='출석') w++;
+        return w;
+      })() : null;
+      const icon = isNewbie ? '👋' : s['이름'].charAt(0);
+      const subInfo = isNewbie
+        ? `${s['성별']||'-'} · ${age ? '만'+age+'세' : '-'} · ${weeks}/4주 출석`
+        : `${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${age||'-'}세`;
+      const actionBtn = isNewbie
+        ? ''
+        : `<button class="btn btn-outline btn-sm" onclick="closeModal('statusListModal');showStudentDetail('${s['학생ID']}')">상세</button>`;
       return `
       <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-100);">
-        <div style="width:34px;height:34px;border-radius:50%;background:var(--primary-lt);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary);font-size:.85rem;">${s['이름'].charAt(0)}</div>
+        <div style="width:34px;height:34px;border-radius:50%;background:var(--primary-lt);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary);font-size:.85rem;">${icon}</div>
         <div style="flex:1;">
           <div style="font-weight:700;font-size:.88rem;">${s['이름']}
-            <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;margin-left:4px;">${s['상태']}</span>
+            ${isNewbie ? '' : `<span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;margin-left:4px;">${s['상태']}</span>`}
           </div>
-          <div style="font-size:.75rem;color:var(--gray-500);">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${age||'-'}세</div>
+          <div style="font-size:.75rem;color:var(--gray-500);">${subInfo}</div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="closeModal('statusListModal');showStudentDetail('${s['학생ID']}')">상세</button>
+        ${actionBtn}
       </div>`;
     }).join('');
   }
@@ -3243,7 +3319,12 @@ function renderDashboard() {
     document.getElementById('statTotal').textContent  = allStudents.length;
     document.getElementById('statActive').textContent = active.length;
     document.getElementById('statNewbie').textContent = newbie.length;
-    const tEl = document.getElementById('statTeacher'); if (tEl) tEl.textContent = allTeachers.length;
+    const ADMIN_ROLES_STAT = ['교역자','목사','전도사'];
+    const filteredTeachersForStat = allTeachers.filter(t => {
+      const roles = String(t['구분']||'').split(',').map(r=>r.trim());
+      return !roles.some(r => ADMIN_ROLES_STAT.includes(r));
+    });
+    const tEl = document.getElementById('statTeacher'); if (tEl) tEl.textContent = filteredTeachersForStat.length;
     const absentStatEl = document.getElementById('statAbsent');
     if (absentStatEl) absentStatEl.textContent = absent.length;
     const studyEl = document.getElementById('statStudy');
@@ -3573,9 +3654,9 @@ function setupAttendanceDateSelect() {
     const myClasses = rawClass
       ? rawClass.split(',').map(c => c.trim()).filter(c => c && allClasses.includes(c))
       : [];
-    const fallback  = rawClass || '담당반 없음';
+    const fallback  = rawClass || '';
 
-    if (!myClasses.length) {
+    if (!myClasses.length && fallback) {
       classEl.innerHTML = `<option value="${fallback}">${fallback}</option>`;
       classEl.value = fallback;
     } else if (myClasses.length === 1) {
@@ -3740,10 +3821,18 @@ function renderAttList() {
     const subLabel = r._isTeacher
       ? `<span style="font-size:.72rem;color:var(--gray-500);">${r._role}${r._class ? ' · ' + r._class : ''}</span>`
       : '';
+    // 심방필요 학생 표시
+    const visitTag = (!r._isTeacher && r._studentStatus === '심방필요')
+      ? `<span style="font-size:.65rem;font-weight:700;background:#FEF3C7;color:#D97706;border:1px solid #FCD34D;border-radius:10px;padding:1px 6px;margin-left:4px;">심방필요</span>`
+      : '';
+    // 새롭게 등반한 학생 표시
+    const newTag = (!r._isTeacher && r._isNew)
+      ? `<span style="font-size:.65rem;font-weight:700;background:#D1FAE5;color:#059669;border:1px solid #6EE7B7;border-radius:10px;padding:1px 6px;margin-left:4px;">새롭게 등반했습니다 🎉</span>`
+      : '';
     const noteVal = r.note || '';
     return `
     <div class="att-row ${r.status==='결석'?'absent':''}" id="att-${r.studentId}">
-      <div class="att-name">${r.name} ${subLabel}</div>
+      <div class="att-name">${r.name} ${visitTag}${newTag}${subLabel}</div>
       <div class="att-toggle">
         <button class="att-on ${r.status==='출석'?'active':''}" onclick="setAtt('${r.studentId}','출석')">출석</button>
         <button class="att-off ${r.status==='결석'?'active':''}" onclick="setAtt('${r.studentId}','결석')">결석</button>
@@ -4094,6 +4183,55 @@ async function loadTrend(months) {
         }).join('')}
       </tbody>
     </table></div>` : ''}`;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// 교역자용: 반배정 대기 새친구 알림 체크
+// ══════════════════════════════════════════════════════════════
+let _assignAlertShown = false;
+
+async function checkNewbieAssignAlert() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  if (_assignAlertShown) return;
+  const r = await callGAS('getNewbiesReadyToAssign', {});
+  if (!r.success || !r.data || !r.data.length) return;
+  _assignAlertShown = true;
+  const names = r.data.map(n => `• ${n.name} (${n.fourthDate||'날짜미상'})`).join('\n');
+  const toastMsg = '🔔 반배정 필요 새친구 ' + r.data.length + '명\n' + names;
+  showToast(toastMsg, 'warning', 6000);
+
+  // 알림 팝업도 추가
+  let alert = document.getElementById('assignAlertBanner');
+  if (!alert) {
+    alert = document.createElement('div');
+    alert.id = 'assignAlertBanner';
+    alert.style.cssText = `
+      position:fixed;top:70px;left:50%;transform:translateX(-50%);
+      background:linear-gradient(135deg,#FEF9C3,#FEF08A);
+      border:2px solid #F59E0B;border-radius:12px;
+      padding:12px 18px;box-shadow:0 4px 20px rgba(245,158,11,.3);
+      z-index:1500;max-width:340px;width:calc(100% - 32px);
+      animation:slideDown .3s ease;
+    `;
+    document.body.appendChild(alert);
+  }
+  alert.innerHTML = `
+    <div style="font-weight:800;color:#92400E;margin-bottom:4px;">🔔 반배정 필요 ${r.data.length}명</div>
+    <div style="font-size:.8rem;color:#78350F;line-height:1.6;">
+      ${r.data.map(n=>`• ${n.name}`).join('<br>')}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <button onclick="switchTab('newbie');document.getElementById('assignAlertBanner').remove();"
+        style="flex:1;padding:6px;background:#F59E0B;color:#fff;border:none;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;">
+        새친구 탭 이동
+      </button>
+      <button onclick="this.closest('#assignAlertBanner').remove();"
+        style="padding:6px 10px;background:#fff;border:1px solid #F59E0B;border-radius:6px;font-size:.78rem;cursor:pointer;">
+        닫기
+      </button>
+    </div>`;
+  alert.style.display = 'block';
 }
 
 async function initAttstatView() {
@@ -4641,8 +4779,8 @@ function renderNewbieList() {
       </div>
       ${allDone ? `
       <div class="assign-section">
-        <div style="font-size:.85rem;font-weight:600;margin-bottom:8px;color:var(--primary);">🎉 4주 출석 완료! 정규 반에 배정하세요.</div>
-        <button class="btn btn-success btn-sm" onclick="openAssignModal('${n['이름']}','${n['이름']}')">정규 반 배정하기 →</button>
+        <div style="font-size:.85rem;font-weight:600;margin-bottom:8px;color:var(--primary);">🎉 4주 출석 완료!</div>
+        ${currentUser && currentUser.role === 'admin' ? `<button class="btn btn-success btn-sm" onclick="openAssignModal('${n['이름']}','${n['이름']}')">정규 반 배정하기 →</button>` : '<div style="font-size:.75rem;color:var(--gray-500);">교역자에게 반배정을 요청해주세요.</div>'}
       </div>` : ''}
     </div>`;
   }).join('');
@@ -4825,7 +4963,18 @@ function openAssignModal(id, name) {
   }
   nameInput.value = name;
   document.getElementById('assignModal').querySelector('.modal-title').textContent = `${name} - 반 배정`;
-  const classes = [...new Set(allStudents.filter(s=>s['상태']==='등록').map(s=>s['학년-반']))].sort();
+  // GRADE_ORDER 순으로 정렬
+  const GRADE_ORDER_ASSIGN = ['초6','중1','중2','중3','고1','고2','고3','영어반'];
+  function classOrderVal(c) {
+    for (let i=0;i<GRADE_ORDER_ASSIGN.length;i++) {
+      const g = GRADE_ORDER_ASSIGN[i];
+      if (g==='영어반') { if((c||'').includes('영어반')) return String(i).padStart(2,'0')+'_'+c; }
+      else if ((c||'').startsWith(g)) return String(i).padStart(2,'0')+'_'+c;
+    }
+    return '99_'+c;
+  }
+  const classes = [...new Set(allStudents.filter(s=>['등록','심방필요'].includes(s['상태'])).map(s=>s['학년-반']))]
+    .sort((a,b)=>classOrderVal(a).localeCompare(classOrderVal(b)));
   const teachers = allTeachers.filter(t=>t['구분']==='담임');
   const opts = classes.map(c=>`<option value="${c}">${c}</option>`);
   if (!opts.length) opts.push(`<option value="">반을 먼저 생성해주세요</option>`);
@@ -4980,9 +5129,12 @@ function _studentCard(s) {
       displayAge = age;
     }
   }
-  return `<div class="card" style="margin-bottom:6px;" onclick="">
+  return `<div class="card" style="margin-bottom:6px;cursor:pointer;" onclick="showStudentDetail('${s['학생ID']}')">
     <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:11px 14px;">
-      <div style="width:34px;height:34px;border-radius:50%;background:var(--primary-lt);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--primary);font-size:.85rem;flex-shrink:0;">${s['이름'].charAt(0)}</div>
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;line-height:1.1;gap:1px;">
+        <span style="font-size:.6rem;opacity:.85;">${(s['학년-반']||'').slice(0,3)}</span>
+        <span style="font-size:.8rem;">${s['이름'].charAt(0)}</span>
+      </div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:.88rem;">${s['이름']} <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;">${s['상태']}</span></div>
         <div style="font-size:.73rem;color:var(--gray-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s['학년-반']||'-'} · ${s['성별']||'-'} · 만${displayAge||'-'}세 · ${s['담임교사']||'-'}</div>
@@ -5064,19 +5216,23 @@ function renderRecords() {
       // 반 이름 정렬
       const orderedClasses = Object.keys(classGroups).sort((a,b) => a.localeCompare(b,'ko'));
 
-      const classHtml = orderedClasses.map(cls => {
+      const clsTogglePrefix = 'cls_' + grade.replace(/[^a-zA-Z0-9가-힣]/g,'_');
+      const classHtml = orderedClasses.map((cls, clsIdx) => {
         const stuInClass = classGroups[cls];
-        // 반 라벨을 명단 왼쪽 사이드에 세로로 표시
-        const shortCls = cls.replace(grade,'').trim() || cls; // 학년 부분 제거 후 '1반' 등만
+        const shortCls = cls.replace(grade,'').trim() || cls;
+        const toggleId = clsTogglePrefix + '_' + clsIdx;
         return `
-          <div style="display:flex;margin:4px 0 2px;">
-            <div style="writing-mode:vertical-rl;text-orientation:mixed;background:var(--primary);color:#fff;
-                        font-size:.72rem;font-weight:800;padding:8px 5px;border-radius:4px 0 0 4px;
-                        min-height:40px;display:flex;align-items:center;justify-content:center;
-                        flex-shrink:0;letter-spacing:.1em;cursor:default;" title="${cls}">
-              ${shortCls}
+          <div style="margin:4px 0;">
+            <div onclick="toggleSection('${toggleId}')"
+              style="display:flex;align-items:center;justify-content:space-between;
+                     background:var(--primary-lt);border:1.5px solid rgba(124,58,237,.18);
+                     border-radius:8px;padding:8px 12px;cursor:pointer;margin-bottom:4px;">
+              <span style="font-size:.8rem;font-weight:800;color:var(--primary);">
+                ${cls} <span style="font-size:.72rem;font-weight:500;color:var(--gray-500);margin-left:6px;">${stuInClass.length}명</span>
+              </span>
+              <span id="chev_${toggleId}" style="font-size:.7rem;color:var(--primary);transition:transform .2s;">▼</span>
             </div>
-            <div style="flex:1;border:1.5px solid var(--primary-lt);border-left:none;border-radius:0 4px 4px 0;padding:4px 6px;overflow:hidden;">
+            <div id="${toggleId}" style="overflow:hidden;transition:max-height .3s ease;">
               ${stuInClass.map(_studentCard).join('')}
             </div>
           </div>`;
@@ -5108,6 +5264,113 @@ function setTeacherSort(key) {
   renderTeacherRecords();
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// 교사 교적 탭 (teacher_records view)
+// ══════════════════════════════════════════════════════════════
+let _teacherRecRoleFilter = 'all'; // 'all' | '교역자' | '리더십' | '담임' | '부담임' | '새친구'
+
+function setTeacherRoleFilter(role) {
+  _teacherRecRoleFilter = role;
+  document.querySelectorAll('#teacherRoleFilterBar .filter-tag').forEach(b => {
+    b.classList.toggle('active', b.id === 'trf_' + (role === 'all' ? 'all' : role));
+  });
+  renderTeacherRecordsPage();
+}
+
+function renderTeacherRecordsPage() {
+  const el = document.getElementById('teacherRecordsList');
+  if (!el) return;
+  if (!allTeachers.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">👨‍🏫</div>교사 데이터가 없습니다.</div>';
+    return;
+  }
+
+  // 필터 초기 active 설정
+  document.querySelectorAll('#teacherRoleFilterBar .filter-tag').forEach(b => {
+    b.classList.toggle('active', b.id === 'trf_' + (_teacherRecRoleFilter === 'all' ? 'all' : _teacherRecRoleFilter));
+  });
+
+  let filtered = [...allTeachers];
+
+  // 역할 필터
+  if (_teacherRecRoleFilter !== 'all') {
+    filtered = filtered.filter(t => {
+      const roles = String(t['구분']||'').split(',').map(r=>r.trim());
+      return roles.includes(_teacherRecRoleFilter);
+    });
+  }
+
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div>해당하는 교사가 없습니다.</div>';
+    return;
+  }
+
+  // 구분별 그룹화 (항시 위 배치 없이 가나다 순서로)
+  const ROLE_GROUP_ORDER = ['교역자','목사','전도사','리더십','리더','부장','담임','부담임','새친구','미디어','찬양팀','워십팀','사역팀','기타'];
+  
+  const groups = {};
+  filtered.forEach(t => {
+    const roles = String(t['구분']||'').split(',').map(r=>r.trim()).filter(r=>r);
+    const mainRole = roles.find(r => ROLE_GROUP_ORDER.includes(r)) || (roles[0] || '기타');
+    (groups[mainRole] = groups[mainRole] || []).push(t);
+  });
+
+  // 그룹 정렬
+  const sortedGroupKeys = Object.keys(groups).sort((a,b) => {
+    const ai = ROLE_GROUP_ORDER.indexOf(a);
+    const bi = ROLE_GROUP_ORDER.indexOf(b);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  });
+
+  el.innerHTML = sortedGroupKeys.map((role, gi) => {
+    const teachers = groups[role].sort((a,b) => (a['이름']||'').localeCompare(b['이름']||'','ko'));
+    const toggleId = 'trecgroup_' + gi;
+    return `
+      <div style="margin-bottom:8px;">
+        <div onclick="toggleSection('${toggleId}')"
+          style="display:flex;align-items:center;justify-content:space-between;
+                 background:linear-gradient(135deg,var(--primary-lt),#F0FDF4);
+                 border:1.5px solid rgba(124,58,237,.15);border-radius:10px;
+                 padding:10px 14px;cursor:pointer;margin-bottom:4px;">
+          <span style="font-size:.83rem;font-weight:800;color:var(--primary);">
+            ${role} <span style="font-size:.72rem;font-weight:500;color:var(--gray-400);margin-left:6px;">${teachers.length}명</span>
+          </span>
+          <span id="chev_${toggleId}" style="font-size:.7rem;color:var(--primary);transition:transform .2s;">▼</span>
+        </div>
+        <div id="${toggleId}" style="max-height:3000px;overflow:visible;transition:max-height .3s ease;">
+          ${teachers.map(t => _teacherRecCard(t)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function _teacherRecCard(t) {
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const cls   = t['담당 학년-반'] || '';
+  const phone = t['연락처'] || '-';
+  const roles = (t['구분']||'').split(',').map(r=>r.trim()).filter(r=>r);
+  const badges = roles.map(r=>`<span class="badge badge-amber" style="font-size:.6rem;">${r}</span>`).join(' ');
+  const editBtns = isAdmin
+    ? `<div style="display:flex;gap:4px;">
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openEditTeacherModal('${t['교사ID']}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteTeacherConfirm('${t['교사ID']}','${t['이름']}')">🗑️</button>
+      </div>`
+    : '';
+  return `<div class="card" style="margin-bottom:5px;">
+    <div class="card-body" style="display:flex;align-items:center;gap:10px;padding:10px 14px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:.85rem;flex-shrink:0;">${(t['이름']||'?').charAt(0)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:.88rem;">${t['이름']} ${badges}</div>
+        <div style="font-size:.72rem;color:var(--gray-500);">
+          ${cls ? `${cls}${phone && phone !== '-' ? ' · ' + phone : ''}` : (phone && phone !== '-' ? phone : '')}
+        </div>
+      </div>
+      ${editBtns}
+    </div>
+  </div>`;
+}
+
 function renderTeacherRecords() {
   const el = document.getElementById('recordTeacherList');
   if (!el) return;
@@ -5118,7 +5381,7 @@ function renderTeacherRecords() {
     return;
   }
   const TOP_ROLES = ['\uad50\uc5ed\uc790','\ubaa9\uc0ac','\uc804\ub3c4\uc0ac','\ubd80\uc7a5','\ub9ac\ub354\uc2ed'];
-  const FILTER_ROLES = ['\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300','\uc6cc\uc2ed\ud300','\uc0ac\uc5ed\ud300'];
+  const FILTER_ROLES = ['\uad50\uc5ed\uc790','\ub9ac\ub354\uc2ed','\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300','\uc6cc\uc2ed\ud300','\uc0ac\uc5ed\ud300'];
   function isTop(t) { return (t['\uad6c\ubd84']||'').split(',').map(r=>r.trim()).some(r=>TOP_ROLES.includes(r)); }
   const anyChecked = FILTER_ROLES.some(r => _teacherRoleFilter.has(r));
   if (anyChecked) {
@@ -5156,7 +5419,7 @@ function _renderTeacherCard(t) {
   return '<div class="card" style="margin-bottom:6px;cursor:pointer;" onclick="showTeacherDetail(this.dataset.id)" data-id="' + id + '">'
     + '<div class="card-body" style="display:flex;align-items:center;gap:10px;padding:10px 14px;">'
     + '<div style="flex:1"><div style="font-weight:700;font-size:.88rem;">' + name + ' ' + badges + '</div>'
-    + '<div style="font-size:.73rem;color:var(--gray-500);">' + (t['\ub2f4\ub2f9 \ud559\ub144-\ubc18']||'\ub2f4\ub2f9\ubc18 \uc5c6\uc74c') + ' \u00b7 ' + (t['\uc5f0\ub77d\uccb4']||'-') + '</div></div>'
+    + '<div style="font-size:.73rem;color:var(--gray-500);">' + ((t['\ub2f4\ub2f9 \ud559\ub144-\ubc18'] ? t['\ub2f4\ub2f9 \ud559\ub144-\ubc18'] + ' \u00b7 ' : '') + (t['\uc5f0\ub77d\uccb4']||'-')) + '</div></div>'
     + '<div style="display:flex;gap:6px;">'
     + '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openEditTeacherModal(this.closest(\'.card\').dataset.id)">\u270f\ufe0f</button>'
     + '<button class="btn btn-danger btn-sm" data-name="' + name + '" onclick="event.stopPropagation();deleteTeacherConfirm(this.closest(\'.card\').dataset.id,this.dataset.name)">\ud83d\uddd1\ufe0f</button>'
@@ -5165,7 +5428,7 @@ function _renderTeacherCard(t) {
 
 function _buildTeacherSortBar(anyChecked) {
   const lbl = TEACHER_SORT_LABELS[teacherSortKey] || '\uae30\ubcf8\uc21c';
-  const FILTER_ROLES = ['\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300','\uc6cc\uc2ed\ud300','\uc0ac\uc5ed\ud300'];
+  const FILTER_ROLES = ['\uad50\uc5ed\uc790','\ub9ac\ub354\uc2ed','\ub2f4\uc784','\ubd80\ub2f4\uc784','\uc0c8\uce5c\uad6c','\ubbf8\ub514\uc5b4','\ucc2c\uc591\ud300','\uc6cc\uc2ed\ud300','\uc0ac\uc5ed\ud300'];
   const clearHtml = anyChecked ? '<span onclick="_teacherRoleFilter.clear();renderTeacherRecords();event.stopPropagation();" style="font-size:.67rem;color:var(--primary);cursor:pointer;font-weight:700;margin-left:auto;">\uc804\uccb4\ud574\uc81c</span>' : '';
   const mkCheck = (key, label) => {
     const op = teacherSortKey === key ? 1 : 0;
@@ -5580,6 +5843,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (btn.dataset.view === 'newbie') renderNewbieList();
     if (btn.dataset.view === 'attstat') initAttstatView();
     if (btn.dataset.view === 'records') switchRecordTab(currentRecordTab || 'students');
+    if (btn.dataset.view === 'teacher_records') renderTeacherRecordsPage();
     if (btn.dataset.view === 'attendance') {
       loadAttendanceStats();
       startAttPoll(); // 출석체크 탭 진입 시 폴링 시작
