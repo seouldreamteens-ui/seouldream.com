@@ -1175,6 +1175,44 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div id="studentList"></div>
     </div><!-- /birthdayCollapsible -->
 
+    <!-- ══ 사진첩 ══════════════════════════════════════════ -->
+    <div class="callout callout-info" id="photoAlbumCallout" style="margin-top:16px;">
+      <div class="callout-header" onclick="toggleCallout('photoAlbumCallout')" style="padding:10px 14px;">
+        <div class="callout-title" style="font-size:.85rem;"><span class="callout-icon">📸</span><span>사진첩</span></div>
+        <span class="callout-chevron">▼</span>
+      </div>
+      <div class="callout-body" style="padding:12px 14px;">
+        <!-- 노션 설정 안내 (설정 전) -->
+        <div id="photoNotionSetup" style="display:none;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:.78rem;color:#075985;">
+          📋 사진첩을 사용하려면 <strong>노션 API 키</strong>와 <strong>데이터베이스 ID</strong>를 설정해주세요.
+          <button onclick="openNotionSettings()" class="btn btn-outline" style="margin-top:6px;width:100%;font-size:.75rem;">⚙️ 노션 설정하기</button>
+        </div>
+        <!-- 업로드 영역 -->
+        <div id="photoUploadArea">
+          <label for="photoFileInput" style="display:block;cursor:pointer;">
+            <div style="border:2px dashed #BAE6FD;border-radius:10px;padding:20px;text-align:center;background:#F0F9FF;transition:background .2s;"
+                 id="photoDropZone"
+                 ondragover="event.preventDefault();this.style.background='#DBEAFE';"
+                 ondragleave="this.style.background='#F0F9FF';"
+                 ondrop="handlePhotoDrop(event)">
+              <div style="font-size:2rem;">📷</div>
+              <div style="font-size:.82rem;font-weight:700;color:#0369A1;margin-top:4px;">사진 선택 또는 드래그</div>
+              <div style="font-size:.72rem;color:var(--gray-500);margin-top:2px;">JPG, PNG, GIF (최대 5MB)</div>
+            </div>
+          </label>
+          <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none" onchange="handlePhotoSelect(event)">
+          <input type="text" id="photoTitle" placeholder="사진 제목 (선택)" class="form-control" style="margin-top:8px;font-size:.83rem;">
+          <button class="btn btn-primary" onclick="uploadPhotos()" id="photoUploadBtn" style="width:100%;margin-top:8px;display:none;">
+            📤 노션에 업로드
+          </button>
+        </div>
+        <!-- 미리보기 -->
+        <div id="photoPreviewGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;"></div>
+        <!-- 최근 업로드된 사진 목록 -->
+        <div id="photoGallery" style="margin-top:12px;"></div>
+        <div id="photoUploadStatus" style="margin-top:6px;font-size:.78rem;text-align:center;color:var(--gray-500);"></div>
+      </div>
+    </div>
 
   </section>
 
@@ -3886,19 +3924,170 @@ function setReason(id, reason) {
 
 // ── 실시간 출석 폴링 ──────────────────────────────────────────
 
-// ── 교사 자체 출석체크 ──────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════
+// 사진첩 (노션 연동)
+// ══════════════════════════════════════════════════════════════
+let _selectedPhotos = []; // [{file, dataUrl}]
+
+function initPhotoAlbum() {
+  const notionKey = localStorage.getItem('notionApiKey') || '';
+  const notionDb  = localStorage.getItem('notionDbId')  || '';
+  const setup = document.getElementById('photoNotionSetup');
+  if (setup) setup.style.display = (!notionKey || !notionDb) ? 'block' : 'none';
+  loadPhotoGallery();
+}
+
+function openNotionSettings() {
+  const key = prompt('노션 API 키를 입력하세요:\n(Notion → Settings → Integrations → My integrations)', localStorage.getItem('notionApiKey') || '');
+  if (key === null) return;
+  const db = prompt('노션 데이터베이스 ID를 입력하세요:\n(데이터베이스 URL의 32자리 ID)', localStorage.getItem('notionDbId') || '');
+  if (db === null) return;
+  localStorage.setItem('notionApiKey', key.trim());
+  localStorage.setItem('notionDbId',   db.trim());
+  initPhotoAlbum();
+  showToast('✅ 노션 설정이 저장되었습니다.', 'success');
+}
+
+function handlePhotoSelect(event) {
+  const files = Array.from(event.target.files);
+  addPhotoPreviews(files);
+}
+
+function handlePhotoDrop(event) {
+  event.preventDefault();
+  document.getElementById('photoDropZone').style.background = '#F0F9FF';
+  const files = Array.from(event.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  addPhotoPreviews(files);
+}
+
+function addPhotoPreviews(files) {
+  const MAX_SIZE = 5 * 1024 * 1024;
+  files = files.filter(f => {
+    if (f.size > MAX_SIZE) { showToast('"' + f.name + '" 파일이 5MB를 초과합니다.', 'warning'); return false; }
+    return true;
+  });
+  const grid = document.getElementById('photoPreviewGrid');
+  const btn  = document.getElementById('photoUploadBtn');
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target.result;
+      _selectedPhotos.push({ file, dataUrl });
+      const div = document.createElement('div');
+      div.style.cssText = 'position:relative;aspect-ratio:1;overflow:hidden;border-radius:8px;';
+      div.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover;">'
+        + '<button onclick="removePhoto(this)" data-url="' + dataUrl + '"'
+        + ' style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:.7rem;cursor:pointer;line-height:1;">✕</button>';
+      grid.appendChild(div);
+      if (btn) btn.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function removePhoto(btn) {
+  const url = btn.dataset.url;
+  _selectedPhotos = _selectedPhotos.filter(p => p.dataUrl !== url);
+  btn.parentElement.remove();
+  if (_selectedPhotos.length === 0) {
+    const uploadBtn = document.getElementById('photoUploadBtn');
+    if (uploadBtn) uploadBtn.style.display = 'none';
+  }
+}
+
+async function uploadPhotos() {
+  if (!_selectedPhotos.length) return;
+  const notionKey = localStorage.getItem('notionApiKey') || '';
+  const notionDb  = localStorage.getItem('notionDbId')   || '';
+  if (!notionKey || !notionDb) { openNotionSettings(); return; }
+  const title  = document.getElementById('photoTitle').value.trim() || formatDate(new Date().toISOString().slice(0,10));
+  const btn    = document.getElementById('photoUploadBtn');
+  const status = document.getElementById('photoUploadStatus');
+  btn.disabled = true; btn.textContent = '⏳ 업로드 중...';
+  if (status) status.textContent = '';
+
+  let successCount = 0;
+  for (let i = 0; i < _selectedPhotos.length; i++) {
+    const photo = _selectedPhotos[i];
+    if (status) status.textContent = '(' + (i+1) + '/' + _selectedPhotos.length + ') 업로드 중...';
+    try {
+      const base64 = photo.dataUrl.split(',')[1];
+      const mimeType = photo.dataUrl.split(';')[0].split(':')[1];
+      const r = await callGAS('uploadPhotoToNotion', {
+        base64, mimeType, fileName: photo.file.name,
+        notionKey, notionDb,
+        title: title + ' (' + (i+1) + ')',
+        uploader: currentUser ? currentUser.name : '익명',
+      });
+      if (r.success) successCount++;
+      else showToast('"' + photo.file.name + '" 업로드 실패: ' + r.message, 'warning');
+    } catch(e) { showToast('업로드 오류: ' + e.message, 'error'); }
+  }
+
+  btn.disabled = false; btn.textContent = '📤 노션에 업로드';
+  if (status) status.textContent = successCount > 0 ? '✅ ' + successCount + '장 업로드 완료' : '';
+  if (successCount > 0) {
+    _selectedPhotos = [];
+    document.getElementById('photoPreviewGrid').innerHTML = '';
+    btn.style.display = 'none';
+    document.getElementById('photoTitle').value = '';
+    document.getElementById('photoFileInput').value = '';
+    showToast('✅ ' + successCount + '장이 노션에 업로드되었습니다.', 'success');
+    setTimeout(loadPhotoGallery, 1500);
+  }
+}
+
+async function loadPhotoGallery() {
+  const gallery = document.getElementById('photoGallery');
+  if (!gallery) return;
+  const notionKey = localStorage.getItem('notionApiKey') || '';
+  const notionDb  = localStorage.getItem('notionDbId')   || '';
+  if (!notionKey || !notionDb) { gallery.innerHTML = ''; return; }
+
+  gallery.innerHTML = '<div style="font-size:.75rem;color:var(--gray-400);text-align:center;padding:8px;">사진 불러오는 중...</div>';
+  try {
+    const r = await callGAS('getNotionPhotos', { notionKey, notionDb });
+    if (!r.success || !r.data || !r.data.length) {
+      gallery.innerHTML = '<div style="font-size:.75rem;color:var(--gray-400);text-align:center;padding:8px;">업로드된 사진이 없습니다.</div>';
+      return;
+    }
+    const items = r.data.map(p => {
+      const imgEl = p.driveUrl
+        ? `<img src="${p.driveUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.background='#F3F4F6';this.style.display='none'">`
+        : '<div style="width:100%;height:100%;background:#E5E7EB;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">🖼️</div>';
+      const label = `<div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.6));padding:4px 4px 2px;font-size:.6rem;color:#fff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${p.title||''}</div>`;
+      return `<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;" onclick="window.open('${p.notionUrl}','_blank')">${imgEl}${label}</div>`;
+    }).join('');
+    gallery.innerHTML = `<div style="font-size:.78rem;font-weight:700;color:var(--gray-700);margin-bottom:6px;">최근 업로드 사진</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">${items}</div>`;
+  } catch(e) {
+    gallery.innerHTML = '<div style="font-size:.75rem;color:#DC2626;text-align:center;padding:8px;">사진 로드 실패</div>';
+  }
+}
+
+
 function initTeacherSelfAttPanel() {
   const panel = document.getElementById('teacherSelfAttPanel');
   if (!panel) return;
   const role = currentUser && currentUser.role;
-  // 교사/새친구교사만 표시 (교역자·리더십은 이미 별도 탭으로 관리)
+  // 교사/새친구교사만 표시
   if (role === 'teacher' || role === 'newbie_teacher') {
     panel.style.display = 'block';
-    // 날짜 정보 업데이트
+    // 날짜: attDate에서 읽거나 자동 선택
     const dateEl = document.getElementById('attDate');
-    const date = dateEl ? dateEl.value : '';
+    let date = dateEl ? dateEl.value : '';
+    if (!date && allSundays && allSundays.length > 0) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      date = allSundays.filter(s => new Date(s) <= today).pop() || allSundays[0];
+      if (dateEl && date) { dateEl.value = date; showDateBanner(date); }
+    }
     const info = document.getElementById('teacherSelfAttInfo');
-    if (info && date) info.textContent = `${formatDate(date)} 출석을 직접 체크해주세요.`;
+    if (info) info.textContent = date ? `${formatDate(date)} 출석을 직접 체크해주세요.` : '출석을 직접 체크해주세요.';
+    // 출석 완료 버튼 상태 초기화
+    const btn = document.getElementById('teacherSelfAttBtn');
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 출석하기'; }
+    const res = document.getElementById('teacherSelfAttResult');
+    if (res) res.textContent = '';
   } else {
     panel.style.display = 'none';
   }
@@ -3908,8 +4097,13 @@ async function doTeacherSelfAttendance() {
   const btn = document.getElementById('teacherSelfAttBtn');
   const result = document.getElementById('teacherSelfAttResult');
   const dateEl = document.getElementById('attDate');
-  const date = dateEl ? dateEl.value : '';
-
+  // 날짜 자동 선택: attDate 값이 없으면 가장 최근 주일 자동 사용
+  let date = dateEl ? dateEl.value : '';
+  if (!date && allSundays && allSundays.length > 0) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    date = allSundays.filter(s => new Date(s) <= today).pop() || allSundays[0];
+    if (dateEl) { dateEl.value = date; showDateBanner(date); }
+  }
   if (!date) { showToast('날짜를 먼저 선택해주세요.', 'error'); return; }
   if (!currentUser) return;
 
@@ -5914,6 +6108,9 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (btn.dataset.view === 'attstat') initAttstatView();
     if (btn.dataset.view === 'records') switchRecordTab(currentRecordTab || 'students');
     if (btn.dataset.view === 'teacher_records') renderTeacherRecordsPage();
+    if (btn.dataset.view === 'dashboard') {
+      initPhotoAlbum(); // 사진첩 초기화
+    }
     if (btn.dataset.view === 'attendance') {
       loadAttendanceStats();
       startAttPoll();
