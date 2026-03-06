@@ -1190,6 +1190,17 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
         <div class="callout-body" id="attStatsList" style="padding:0 0 8px;"></div>
       </div>
     </div>
+    <!-- 교사 자체 출석 버튼 (교사 role에게만 표시) -->
+    <div id="teacherSelfAttPanel" style="display:none;margin-bottom:12px;">
+      <div style="background:linear-gradient(135deg,#F0FDF4,#ECFDF5);border:1.5px solid #6EE7B7;border-radius:12px;padding:14px 16px;">
+        <div style="font-size:.82rem;font-weight:700;color:#059669;margin-bottom:8px;">✋ 내 출석 체크</div>
+        <div style="font-size:.78rem;color:var(--gray-600);margin-bottom:10px;" id="teacherSelfAttInfo">오늘 출석을 직접 체크해주세요.</div>
+        <button class="btn btn-success" id="teacherSelfAttBtn" onclick="doTeacherSelfAttendance()" style="width:100%;">
+          ✅ 출석하기
+        </button>
+        <div id="teacherSelfAttResult" style="margin-top:8px;font-size:.8rem;text-align:center;"></div>
+      </div>
+    </div>
     <div class="att-header">
       <select class="form-control" id="attClass" style="flex:1.2">
         <option value="">반 선택</option>
@@ -3682,6 +3693,7 @@ function setupAttendanceDateSelect() {
   });
   dateEl.addEventListener('change', () => {
     if (dateEl.value) showDateBanner(dateEl.value);
+    initTeacherSelfAttPanel(); // 교사 자체 출석 패널 날짜 갱신
     loadAttendance();
   });
 
@@ -3693,6 +3705,8 @@ function setupAttendanceDateSelect() {
     autoSelectNearestSunday();
     loadAttendance();
   }
+  // 교사 자체 출석 패널 초기화
+  setTimeout(initTeacherSelfAttPanel, 300);
 }
 
 function renderAttLockBanner(myClass) {
@@ -3871,6 +3885,62 @@ function setReason(id, reason) {
 }
 
 // ── 실시간 출석 폴링 ──────────────────────────────────────────
+
+// ── 교사 자체 출석체크 ──────────────────────────────────────
+function initTeacherSelfAttPanel() {
+  const panel = document.getElementById('teacherSelfAttPanel');
+  if (!panel) return;
+  const role = currentUser && currentUser.role;
+  // 교사/새친구교사만 표시 (교역자·리더십은 이미 별도 탭으로 관리)
+  if (role === 'teacher' || role === 'newbie_teacher') {
+    panel.style.display = 'block';
+    // 날짜 정보 업데이트
+    const dateEl = document.getElementById('attDate');
+    const date = dateEl ? dateEl.value : '';
+    const info = document.getElementById('teacherSelfAttInfo');
+    if (info && date) info.textContent = `${formatDate(date)} 출석을 직접 체크해주세요.`;
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+async function doTeacherSelfAttendance() {
+  const btn = document.getElementById('teacherSelfAttBtn');
+  const result = document.getElementById('teacherSelfAttResult');
+  const dateEl = document.getElementById('attDate');
+  const date = dateEl ? dateEl.value : '';
+
+  if (!date) { showToast('날짜를 먼저 선택해주세요.', 'error'); return; }
+  if (!currentUser) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ 처리 중...';
+  if (result) result.textContent = '';
+
+  const r = await callGAS('teacherSelfAttendance', {
+    name: currentUser.name,
+    date: date,
+  });
+
+  btn.disabled = false;
+  btn.textContent = '✅ 출석하기';
+
+  if (r.success) {
+    if (r.data && r.data.alreadyChecked) {
+      if (result) { result.textContent = '✅ 이미 출석 처리되었습니다.'; result.style.color = '#059669'; }
+      showToast('✅ 이미 출석 처리되어 있습니다.', 'success');
+    } else {
+      if (result) { result.textContent = `✅ ${formatDate(date)} 출석 완료!`; result.style.color = '#059669'; }
+      showToast(`✅ ${currentUser.name} 출석 처리 완료`, 'success');
+      btn.textContent = '✅ 출석 완료';
+      btn.disabled = true;
+    }
+  } else {
+    if (result) { result.textContent = r.message || '오류'; result.style.color = '#DC2626'; }
+    showToast(r.message || '출석 저장 실패', 'error');
+  }
+}
+
 function startAttPoll() {
   // 자동 폴링 비활성화 - 작업 중 내용 리셋 방지
   // 출석 데이터는 수동으로 저장 버튼을 통해서만 갱신됨
@@ -5846,7 +5916,8 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (btn.dataset.view === 'teacher_records') renderTeacherRecordsPage();
     if (btn.dataset.view === 'attendance') {
       loadAttendanceStats();
-      startAttPoll(); // 출석체크 탭 진입 시 폴링 시작
+      startAttPoll();
+      initTeacherSelfAttPanel(); // 교사 자체 출석 패널 초기화
     }
   });
 });
