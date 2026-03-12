@@ -592,8 +592,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
 .callout-chevron{
   font-size:.75rem;color:inherit;opacity:.7;
   transition:transform .25s;
+  transform:rotate(180deg);
 }
-.callout.open .callout-chevron{transform:rotate(180deg);}
+.callout.open .callout-chevron{transform:rotate(0deg);}
 .callout-body{
   max-height:0;overflow:hidden;
   transition:max-height .3s ease, padding .3s ease;
@@ -1784,7 +1785,7 @@ function getTeacherRole(teacher) {
 // 역할별 허용 탭
 const ROLE_TABS = {
   admin:          ['dashboard','attendance','attstat','newbie','records','teacher_records'],
-  leadership:     ['dashboard','attendance','attstat','records','teacher_records'],
+  leadership:     ['dashboard','attendance','attstat','newbie','records','teacher_records'],
   teacher:        ['dashboard','attendance','attstat','teacher_records'],
   newbie_teacher: ['dashboard','newbie','attstat','teacher_records'],
 };
@@ -2632,23 +2633,51 @@ async function init() {
   allSundays = getSundays2026();
   filterMonth = new Date().getMonth() + 1;
   sermonWeekIdx = findNearestSundayIdx();
-  // 학생/교사/새친구 + 공지/사역일정/설교를 동시에 로드
-  // 단일 GAS 호출로 학생+교사+새친구 한번에 로드 (속도 최적화)
+
+  // ── 캐시에서 먼저 빠르게 렌더링 (즉시 UI 표시) ──
+  let usedCache = false;
+  try {
+    const cached = sessionStorage.getItem('allDataCache');
+    if (cached) {
+      const c = JSON.parse(cached);
+      if (c && c.students && c.teachers && Date.now() - (c._ts||0) < 300000) { // 5분 캐시
+        allStudents = (c.students || []).filter(s => s['이름']);
+        allTeachers = (c.teachers || []).filter(t => t['이름']);
+        allNewbies  = c.newbies || [];
+        usedCache = true;
+        setupAttendanceDateSelect();
+        renderDashboard();
+        renderRecords();
+        renderNewbieList();
+      }
+    }
+  } catch(e) {}
+
+  // ── 서버에서 최신 데이터 로드 ──
   const _allR = await callGAS('getAllData', {});
   if (_allR && _allR.success && _allR.data) {
     allStudents = (_allR.data.students || []).filter(s => s['이름']);
     allTeachers = (_allR.data.teachers || []).filter(t => t['이름']);
     allNewbies  = (_allR.data.newbies  || []);
-  } else {
+    // 캐시 저장
+    try {
+      sessionStorage.setItem('allDataCache', JSON.stringify({
+        students: allStudents, teachers: allTeachers, newbies: allNewbies, _ts: Date.now()
+      }));
+    } catch(e) {}
+  } else if (!usedCache) {
     await Promise.all([loadStudents(), loadTeachers(), loadNewbies()]);
   }
-  _preloadCalloutData();  // 공지·사역일정 GAS에서 비동기 로드
+
+  // 서버 데이터로 UI 갱신 (캐시 사용 여부와 무관하게)
   setupAttendanceDateSelect();
   renderDashboard();
   renderRecords();
   renderNewbieList();
+
+  // 비동기 후속 로드 (UI 블로킹 없음)
+  _preloadCalloutData();  // 공지·사역일정 GAS에서 비동기 로드
   loadAttendanceStats();
-  // 현재 주 설교 데이터 GAS에서 비동기 로드 (UI 후에 업데이트)
   _loadSermonFromGAS();
   // 교역자 반배정 알림 체크 (5초 후)
   setTimeout(checkNewbieAssignAlert, 5000);
@@ -2820,11 +2849,27 @@ function toggleSection(id) {
   if (open) {
     el.style.maxHeight = '0px';
     el.style.overflow  = 'hidden';
-    if (chev) chev.style.transform = 'rotate(-90deg)';
+    if (chev) chev.style.transform = 'rotate(180deg)';
   } else {
     el.style.maxHeight = '3000px';
     el.style.overflow  = 'visible';
     if (chev) chev.style.transform = '';
+  }
+}
+
+function toggleNewbieWeek(id) {
+  const el = document.getElementById(id);
+  const chev = document.getElementById('chev_' + id);
+  if (!el) return;
+  const isClosed = el.style.maxHeight === '0px' || el.style.maxHeight === '';
+  if (isClosed) {
+    el.style.maxHeight = '500px';
+    el.style.overflow  = 'visible';
+    if (chev) chev.style.transform = 'rotate(0deg)';
+  } else {
+    el.style.maxHeight = '0px';
+    el.style.overflow  = 'hidden';
+    if (chev) chev.style.transform = 'rotate(180deg)';
   }
 }
 
@@ -2838,7 +2883,7 @@ function toggleBirthdaySection() {
   _birthdayOpen = !_birthdayOpen;
   el.style.maxHeight = _birthdayOpen ? '3000px' : '0';
   el.style.overflow  = _birthdayOpen ? 'visible' : 'hidden';
-  if (chevron) chevron.style.transform = _birthdayOpen ? '' : 'rotate(-90deg)';
+  if (chevron) chevron.style.transform = _birthdayOpen ? '' : 'rotate(180deg)';
 }
 function toggleCallout(id) {
   document.getElementById(id).classList.toggle('open');
@@ -3670,25 +3715,21 @@ function setupAttendanceDateSelect() {
     currentUser.teacherObj && hasRole(currentUser.teacherObj, ATTENDANCE_TEACHER_ROLES);
 
   if (isLeadership && !isLeadershipAndTeacher) {
-    // 순수 리더십: 교사 출석만
-    classEl.innerHTML = `<option value="__teachers__">👥 교사 출석체크</option>`;
-    classEl.value = '__teachers__';
-    classEl.setAttribute('disabled', 'disabled');
-    renderAttLockBanner('교사 전체');
-    autoSelectNearestSunday();
-    loadAttendance();
-  } else if (isLeadershipAndTeacher) {
-    // 리더십 겸 담임: 교사 출석 + 담당 반 모두 선택 가능
-    const rawClass = currentUser.classGroup || '';
-    const myClasses = rawClass ? rawClass.split(',').map(c=>c.trim()).filter(c=>c) : [];
+    // 순수 리더십: 교사 출석 + 전체 반 접근 가능 (교역자와 동일)
     classEl.innerHTML =
+      '<option value="">반 선택 (전체)</option>' +
       '<option value="__teachers__">👥 교사 출석체크</option>' +
-      myClasses.filter(c=>allClasses.includes(c)).map(c=>`<option value="${c}">${c}</option>`).join('');
-    classEl.value = '__teachers__';
+      allClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
     classEl.removeAttribute('disabled');
-    renderAttLockBanner('선택하세요');
     autoSelectNearestSunday();
-    loadAttendance();
+  } else if (isLeadershipAndTeacher) {
+    // 리더십 겸 담임: 교사 출석 + 전체 반 모두 선택 가능
+    classEl.innerHTML =
+      '<option value="">반 선택 (전체)</option>' +
+      '<option value="__teachers__">👥 교사 출석체크</option>' +
+      allClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+    classEl.removeAttribute('disabled');
+    autoSelectNearestSunday();
   } else if (isAdmin) {
     // 교사 출석체크가 맨 위, 그 다음 정렬된 반 목록
     classEl.innerHTML =
@@ -4518,26 +4559,10 @@ async function initAttstatView() {
     setAttstatMode('student');
     loadWeeklyBriefing(); // 교역자용 브리핑 로드
   } else if (isLeadership) {
-    _attstatMode = 'teacher';
-    // 리더십 겸 담임 여부 확인
-    const myClass = currentUser.classGroup || '';
-    const myClasses = myClass.split(',').map(c=>c.trim()).filter(c=>c);
-    const isLeaderAndTeacher = myClasses.length > 0;
-
-    if (tabBar) tabBar.style.display = isLeaderAndTeacher ? 'flex' : 'none';
-
-    if (isLeaderAndTeacher) {
-      // 탭 버튼 텍스트 업데이트
-      const tabStudent = document.getElementById('attstatTabStudent');
-      if (tabStudent) tabStudent.textContent = '📚 ' + myClasses.join(', ') + ' 현황';
-      document.getElementById('attstatTabStudent').classList.remove('active');
-      document.getElementById('attstatTabTeacher').classList.add('active');
-      if (classBar) classBar.style.display = 'none';
-      await _loadAttstatData('__teachers__');
-    } else {
-      if (classBar) classBar.style.display = 'none';
-      await _loadAttstatData('__teachers__');
-    }
+    // 리더십: 교역자와 동일하게 학생/교사 탭 모두 표시
+    _attstatMode = 'student';
+    if (tabBar) tabBar.style.display = 'flex';
+    setAttstatMode('student');
   } else {
     // 교사: 담당 반 고정
     _attstatMode = 'student';
@@ -4573,15 +4598,12 @@ async function setAttstatMode(mode) {
     const allClasses = [...new Set(allStudents.filter(s=>validSt.includes(s['상태'])).map(s=>s['학년-반']))]
       .sort((a,b)=>_attstatClassOrder(a).localeCompare(_attstatClassOrder(b)));
 
-    // 리더십 겸 담임: 담당 반만 선택 가능
-    const myClass2 = currentUser ? (currentUser.classGroup || '') : '';
-    const myClasses2 = myClass2.split(',').map(c=>c.trim()).filter(c=>c);
-    const classes = (isLeadership && myClasses2.length) ? myClasses2 : allClasses;
+    // 리더십은 교역자와 동일하게 전체 반 접근 가능
+    const classes = allClasses;
 
     if (classEl) {
-      const allOpt = (isAdmin) ? '<option value="">전체 (반별)</option>' : '';
+      const allOpt = (isAdmin || isLeadership) ? '<option value="">전체 (반별)</option>' : '';
       classEl.innerHTML = allOpt + classes.map(c=>`<option value="${c}">${c}</option>`).join('');
-      if (isLeadership && myClasses2.length) classEl.value = myClasses2[0];
     }
     await _loadAttstatData(classEl ? classEl.value : '');
   }
@@ -5024,6 +5046,14 @@ function renderNewbieList() {
           <div class="badge ${allDone ? 'badge-green' : 'badge-amber'}">${allDone ? '✅ 4주 완료' : '진행 중'}</div>
         </div>
       </div>
+      <div onclick="toggleNewbieWeek('nw_${n['이름'].replace(/\s/g,'_')}')"
+        style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;
+               cursor:pointer;background:var(--gray-50);border-bottom:1px solid var(--gray-100);
+               user-select:none;-webkit-tap-highlight-color:transparent;">
+        <span style="font-size:.78rem;font-weight:700;color:var(--primary);">📋 주차별 출결</span>
+        <span id="chev_nw_${n['이름'].replace(/\s/g,'_')}" style="font-size:.7rem;color:var(--primary);transition:transform .25s;transform:rotate(180deg);">▼</span>
+      </div>
+      <div id="nw_${n['이름'].replace(/\s/g,'_')}" style="max-height:0px;overflow:hidden;transition:max-height .3s ease;">
       <div class="week-grid">
         ${weeks.map((w, i) => `
           <div class="week-item">
@@ -5040,6 +5070,7 @@ function renderNewbieList() {
                     onclick="saveNewbieWeek('${n['이름']}',${i+1})">저장</button>`}
             </div>
           </div>`).join('')}
+      </div>
       </div>
       ${allDone ? `
       <div class="assign-section">
@@ -5393,11 +5424,16 @@ function _studentCard(s) {
       displayAge = age;
     }
   }
+  // 학년-반 파싱 (예: "중1-1반" → "중1", "1반")
+  const clsRaw = s['학년-반'] || '';
+  const clsParts = clsRaw.split('-');
+  const clsGrade = clsParts[0] || '';
+  const clsClass = clsParts.length > 1 ? clsParts.slice(1).join('-') : '';
   return `<div class="card" style="margin-bottom:6px;cursor:pointer;" onclick="showStudentDetail('${s['학생ID']}')">
     <div class="card-body" style="display:flex;align-items:center;gap:12px;padding:11px 14px;">
-      <div style="width:38px;height:38px;border-radius:50%;background:var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;line-height:1.1;gap:1px;">
-        <span style="font-size:.6rem;opacity:.85;">${(s['학년-반']||'').slice(0,3)}</span>
-        <span style="font-size:.8rem;">${s['이름'].charAt(0)}</span>
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;color:#fff;flex-shrink:0;line-height:1.1;gap:0px;">
+        <span style="font-size:.6rem;opacity:.9;">${clsGrade}</span>
+        <span style="font-size:.58rem;opacity:.75;">${clsClass}</span>
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:.88rem;">${s['이름']} <span class="badge ${statusBadgeClass(s['상태'])}" style="font-size:.62rem;">${s['상태']}</span></div>
@@ -5442,7 +5478,8 @@ function renderRecords() {
       if (!groups[key]) groups[key];
       (groups[key] = groups[key] || []).push(s);
     });
-    el.innerHTML = GRADE_ORDER_REC.filter(g => groups[g])
+    el.innerHTML = `<div style="background:var(--gray-100);border-left:3px solid var(--gray-600);padding:6px 12px;border-radius:4px;margin:6px 0 8px;font-size:.78rem;font-weight:800;color:var(--gray-600);">전체 · 총 ${filtered.length}명</div>` +
+      GRADE_ORDER_REC.filter(g => groups[g])
       .map(g => `
         <div style="background:var(--primary-lt);border-left:3px solid var(--primary);padding:6px 12px;border-radius:4px;margin:10px 0 6px;font-size:.78rem;font-weight:800;color:var(--primary);">${g} · ${groups[g].length}명</div>
         ${sortStudents(groups[g]).map(_studentCard).join('')}
@@ -5457,6 +5494,40 @@ function renderRecords() {
   filtered = sortStudents(filtered);
   if (!filtered.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📚</div>학생이 없습니다.</div>`; return; }
 
+  // ── 상태별 그룹 헤더 표시 (정렬키가 'status'인 경우) ─
+  if (recSortKey === 'status') {
+    const statusGroups = {};
+    filtered.forEach(s => {
+      const st = s['상태'] || '기타';
+      (statusGroups[st] = statusGroups[st] || []).push(s);
+    });
+    const orderedStatuses = [...STATUS_ORDER.filter(st => statusGroups[st]), ...(statusGroups['기타'] ? ['기타'] : [])];
+    const totalAll = filtered.length;
+
+    el.innerHTML = `<div style="background:var(--gray-100);border-left:3px solid var(--gray-600);padding:6px 12px;border-radius:4px;margin:6px 0 8px;font-size:.78rem;font-weight:800;color:var(--gray-600);">전체 · 총 ${totalAll}명</div>` +
+      orderedStatuses.map((st, gi) => {
+        const stuInStatus = statusGroups[st];
+        const toggleId = 'status_grp_' + gi;
+        const statusColor = st === '등록' ? '#10B981' : st === '심방필요' ? '#D97706' : st === '장결자' ? '#EF4444' : st === '유학중' ? '#0EA5E9' : 'var(--gray-500)';
+        return `
+          <div style="margin-bottom:8px;">
+            <div onclick="toggleSection('${toggleId}')"
+              style="display:flex;align-items:center;justify-content:space-between;
+                     background:var(--primary-lt);border:1.5px solid rgba(124,58,237,.18);
+                     border-radius:8px;padding:8px 12px;cursor:pointer;margin-bottom:4px;">
+              <span style="font-size:.8rem;font-weight:800;color:${statusColor};">
+                ${st} <span style="font-size:.72rem;font-weight:500;color:var(--gray-500);margin-left:6px;">${stuInStatus.length}명</span>
+              </span>
+              <span id="chev_${toggleId}" style="font-size:.7rem;color:var(--primary);transition:transform .2s;">▼</span>
+            </div>
+            <div id="${toggleId}" style="max-height:3000px;overflow:visible;transition:max-height .3s ease;">
+              ${stuInStatus.map(_studentCard).join('')}
+            </div>
+          </div>`;
+      }).join('');
+    return;
+  }
+
   // ── 학년·반별 그룹 헤더 표시 (정렬키가 'class'인 경우) ─
   if (recSortKey === 'class') {
     // 1단계: 학년별 그룹
@@ -5469,7 +5540,9 @@ function renderRecords() {
     const orderedGrades = [...GRADE_ORDER_REC.filter(g => gradeGroups[g]), ...(gradeGroups['기타'] ? ['기타'] : [])];
 
     // 2단계: 각 학년 내 반별 그룹 (학년-반 값 그대로 사용)
-    el.innerHTML = orderedGrades.map(grade => {
+    const overallTotal = filtered.length;
+    el.innerHTML = `<div style="background:var(--gray-100);border-left:3px solid var(--gray-600);padding:6px 12px;border-radius:4px;margin:6px 0 8px;font-size:.78rem;font-weight:800;color:var(--gray-600);">전체 · 총 ${overallTotal}명</div>` +
+      orderedGrades.map(grade => {
       const gradeStudents = gradeGroups[grade];
       // 반별 서브그룹
       const classGroups = {};
@@ -6347,7 +6420,7 @@ document.addEventListener('click', e => {
 (async function startup() {
   // ── 비밀번호 강제 초기화 목록 (관리자가 직접 지정)
   // 이 배열에 이름을 넣으면 앱 로드 시 해당 사용자 비밀번호가 1234로 초기화됩니다
-  const _FORCE_RESET_PASSWORDS = ['최광식'];
+  const _FORCE_RESET_PASSWORDS = [];
   _FORCE_RESET_PASSWORDS.forEach(n => {
     _localClearPw(n); // localStorage 삭제
     if (GAS_URL) callGAS('resetPassword', { name: n }).catch(() => {}); // GAS 시트도 삭제
