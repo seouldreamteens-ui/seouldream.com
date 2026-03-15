@@ -3721,7 +3721,6 @@ function setupAttendanceDateSelect() {
       '<option value="__teachers__">👥 교사 출석체크</option>' +
       allClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
     classEl.removeAttribute('disabled');
-    autoSelectNearestSunday();
   } else if (isLeadershipAndTeacher) {
     // 리더십 겸 담임: 교사 출석 + 전체 반 모두 선택 가능
     classEl.innerHTML =
@@ -3729,7 +3728,6 @@ function setupAttendanceDateSelect() {
       '<option value="__teachers__">👥 교사 출석체크</option>' +
       allClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
     classEl.removeAttribute('disabled');
-    autoSelectNearestSunday();
   } else if (isAdmin) {
     // 교사 출석체크가 맨 위, 그 다음 정렬된 반 목록
     classEl.innerHTML =
@@ -3777,11 +3775,10 @@ function setupAttendanceDateSelect() {
   });
 
   // 교사(담임·부담임)인 경우 담당 반 자동 로드
-  if (!isAdmin && !isLeadership && currentUser && currentUser.classGroup) {
-    autoSelectNearestSunday();
-    loadAttendance();
-  } else if (isLeadership) {
-    autoSelectNearestSunday();
+  // 모든 역할에서 가장 가까운 일요일을 자동 선택
+  autoSelectNearestSunday();
+  if (!isAdmin) {
+    // 교사·리더십은 반이 이미 고정되어 있으므로 즉시 로드
     loadAttendance();
   }
   // 교사 자체 출석 패널 초기화
@@ -3806,18 +3803,32 @@ function renderAttLockBanner(myClass) {
   attSection.insertBefore(lockBanner, attHeader);
 }
 
-// 오늘 날짜에서 가장 가까운 일요일(과거 우선) 자동 선택
+// 오늘 날짜에서 가장 가까운 일요일 자동 선택
+// 일요일: 오늘 / 월~수: 지난 주일 / 목~토: 다음 주일
 function autoSelectNearestSunday() {
   const dateEl = document.getElementById('attDate');
-  const today  = new Date();
-  today.setHours(0, 0, 0, 0);
+  const now    = new Date();
+  now.setHours(0, 0, 0, 0);
+  const dayOfWeek = now.getDay(); // 0=일, 1=월, ...6=토
 
-  // 오늘 이하인 일요일 중 가장 마지막(최근) 것 선택, 없으면 첫 번째 미래 일요일
-  let best = allSundays[0];
-  for (const s of allSundays) {
-    const d = new Date(s);
-    if (d <= today) best = s;
-    else break;
+  let diff = 0;
+  if (dayOfWeek === 0) diff = 0;          // 오늘이 일요일
+  else if (dayOfWeek <= 3) diff = -dayOfWeek;   // 월~수: 지난 주일
+  else diff = 7 - dayOfWeek;              // 목~토: 다음 주일
+
+  const targetSunday = new Date(now.getTime() + diff * 86400000);
+  const targetStr = toLocalDateStr(targetSunday);
+
+  // allSundays 목록에서 정확히 일치하는 날짜 찾기
+  let best = allSundays.find(s => s === targetStr);
+  if (!best) {
+    // 정확한 날짜가 없으면 가장 가까운 일요일 찾기
+    best = allSundays[0];
+    let minDist = Infinity;
+    for (const s of allSundays) {
+      const dist = Math.abs(new Date(s).getTime() - targetSunday.getTime());
+      if (dist < minDist) { minDist = dist; best = s; }
+    }
   }
 
   dateEl.value = best;
@@ -3909,6 +3920,8 @@ function renderAttList() {
   const records = Object.values(currentAttRecords);
   if (!records.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>명단이 없습니다.</div>`; return; }
 
+  const canEdit = currentUser && (currentUser.role === 'admin' || currentUser.role === 'leadership' || currentUser.role === 'teacher');
+
   document.getElementById('attSaveArea').style.display = 'block';
   el.innerHTML = records.map(r => {
     const subLabel = r._isTeacher
@@ -3922,10 +3935,21 @@ function renderAttList() {
     const newTag = (!r._isTeacher && r._isNew)
       ? `<span style="font-size:.65rem;font-weight:700;background:#D1FAE5;color:#059669;border:1px solid #6EE7B7;border-radius:10px;padding:1px 6px;margin-left:4px;">새롭게 등반했습니다 🎉</span>`
       : '';
+    // 학생 교적 수정 버튼 (교사·리더십·교역자용, 학생만)
+    const editBtn = (!r._isTeacher && canEdit)
+      ? `<button onclick="event.stopPropagation();showStudentDetail('${r.studentId}')"
+          style="background:none;border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 7px;
+                 cursor:pointer;font-size:.68rem;color:var(--gray-500);margin-left:5px;
+                 display:inline-flex;align-items:center;gap:2px;flex-shrink:0;
+                 transition:all .15s;vertical-align:middle;"
+          onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary)';"
+          onmouseout="this.style.borderColor='var(--gray-200)';this.style.color='var(--gray-500)';"
+          title="교적 보기/수정">📋</button>`
+      : '';
     const noteVal = r.note || '';
     return `
     <div class="att-row ${r.status==='결석'?'absent':''}" id="att-${r.studentId}">
-      <div class="att-name">${r.name} ${visitTag}${newTag}${subLabel}</div>
+      <div class="att-name">${r.name} ${visitTag}${newTag}${editBtn}${subLabel}</div>
       <div class="att-toggle">
         <button class="att-on ${r.status==='출석'?'active':''}" onclick="setAtt('${r.studentId}','출석')">출석</button>
         <button class="att-off ${r.status==='결석'?'active':''}" onclick="setAtt('${r.studentId}','결석')">결석</button>
