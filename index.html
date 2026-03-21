@@ -904,6 +904,78 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   .stat-grid{grid-template-columns:repeat(4,1fr);}
   .week-grid{grid-template-columns:repeat(4,1fr);}
 }
+
+/* ══════════════════════════════════════════
+   신청관리 (이벤트)
+══════════════════════════════════════════ */
+.event-card{
+  background:#fff;border-radius:var(--radius);
+  border:1px solid var(--gray-100);
+  box-shadow:var(--shadow-sm);
+  margin-bottom:12px;overflow:hidden;
+  cursor:pointer;transition:box-shadow .2s,transform .15s;
+}
+.event-card:active{transform:scale(.99);}
+.event-card:hover{box-shadow:var(--shadow-md);}
+.event-card-header{
+  padding:14px 16px 10px;
+  display:flex;align-items:flex-start;gap:12px;
+}
+.event-type-icon{
+  width:42px;height:42px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.3rem;flex-shrink:0;
+}
+.event-card-info{flex:1;min-width:0;}
+.event-card-title{font-weight:700;font-size:.95rem;color:var(--gray-800);}
+.event-card-desc{font-size:.78rem;color:var(--gray-500);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.event-card-footer{
+  padding:8px 16px 12px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.event-deadline{
+  font-size:.72rem;font-weight:600;
+  padding:3px 10px;border-radius:50px;
+}
+.event-deadline.active{background:#D1FAE5;color:#065F46;}
+.event-deadline.soon{background:#FEF3C7;color:#92400E;}
+.event-deadline.expired{background:#FEE2E2;color:#991B1B;}
+.event-progress{
+  display:flex;align-items:center;gap:6px;
+  font-size:.72rem;font-weight:600;color:var(--gray-500);
+  margin-left:auto;
+}
+.event-progress-bar{
+  width:60px;height:6px;background:var(--gray-100);
+  border-radius:50px;overflow:hidden;
+}
+.event-progress-fill{height:100%;border-radius:50px;transition:width .3s;}
+.event-check-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;
+  border-bottom:1px solid var(--gray-100);
+  transition:background .12s;
+}
+.event-check-row:last-child{border-bottom:none;}
+.event-check-row:hover{background:var(--gray-50);}
+.event-check-box{
+  width:24px;height:24px;border-radius:6px;
+  border:2px solid var(--gray-200);background:#fff;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;flex-shrink:0;
+  font-size:.9rem;
+}
+.event-check-box.checked{
+  border-color:var(--success);background:var(--success);color:#fff;
+}
+.event-check-name{flex:1;font-weight:600;font-size:.88rem;}
+.event-check-sub{font-size:.72rem;color:var(--gray-400);}
+.event-check-note{
+  font-size:.72rem;color:var(--gray-500);
+  padding:2px 8px;background:var(--gray-50);border-radius:4px;
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
 </style>
 </head>
 <body>
@@ -1457,6 +1529,22 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
     <div id="teacherRecordsList"></div>
   </section>
 
+  <!-- ─── 신청관리 탭 ─── -->
+  <section class="view" id="view-events">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <div class="section-title" style="margin-bottom:0;">📝 신청관리</div>
+      <div style="margin-left:auto;" id="eventAddBtnWrap">
+        <button class="btn btn-primary btn-sm" onclick="openEventModal()">+ 이벤트 생성</button>
+      </div>
+    </div>
+    <!-- 이벤트 목록 -->
+    <div id="eventList">
+      <div class="loading"><div class="spinner"></div><span>불러오는 중...</span></div>
+    </div>
+    <!-- 이벤트 상세 (학생 체크리스트) -->
+    <div id="eventDetailPanel" style="display:none;"></div>
+  </section>
+
 </main>
 
 <!-- ─── 하단 네비게이션 ─── -->
@@ -1475,6 +1563,9 @@ select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3C
   </button>
   <button class="nav-btn" data-view="records">
     <span class="icon">📋</span>교적
+  </button>
+  <button class="nav-btn" data-view="events">
+    <span class="icon">📝</span>신청관리
   </button>
   <button class="nav-btn" data-view="teacher_records">
     <span class="icon">👨‍🏫</span>교사교적
@@ -1784,9 +1875,9 @@ function getTeacherRole(teacher) {
 
 // 역할별 허용 탭
 const ROLE_TABS = {
-  admin:          ['dashboard','attendance','attstat','newbie','records','teacher_records'],
-  leadership:     ['dashboard','attendance','attstat','newbie','records','teacher_records'],
-  teacher:        ['dashboard','attendance','attstat','teacher_records'],
+  admin:          ['dashboard','attendance','attstat','newbie','records','events','teacher_records'],
+  leadership:     ['dashboard','attendance','attstat','newbie','records','events','teacher_records'],
+  teacher:        ['dashboard','attendance','attstat','events','teacher_records'],
   newbie_teacher: ['dashboard','newbie','attstat','teacher_records'],
 };
 
@@ -3255,6 +3346,7 @@ function switchTab(view) {
   if (view === 'attstat') initAttstatView();
   if (view === 'records') switchRecordTab(currentRecordTab || 'students');
   if (view === 'teacher_records') renderTeacherRecordsPage();
+  if (view === 'events') initEventsView();
 }
 
 function showStatusList(status) {
@@ -6213,6 +6305,9 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
       startAttPoll();
       initTeacherSelfAttPanel(); // 교사 자체 출석 패널 초기화
     }
+    if (btn.dataset.view === 'events') {
+      initEventsView();
+    }
   });
 });
 
@@ -6437,6 +6532,445 @@ document.addEventListener('click', e => {
     }
   });
 });
+
+// ══════════════════════════════════════════════════════════════
+// 신청관리 (이벤트) 기능 — 구글 시트 연동
+// ══════════════════════════════════════════════════════════════
+let _eventsCache = [];          // [{id,title,description,deadline,type,sheetName,createdBy,createdAt,active}]
+let _eventSheetDataCache = {};  // { sheetName: [{학생ID,이름,학년-반,담임교사,신청유무,배부완료}] }
+let _currentEventId = null;
+let _eventClassFilter = '';
+let _eventViewFilter = 'all';   // 'all' | 'applied' | 'notApplied' | 'distributed' | 'notDistributed'
+
+const EVENT_TYPES = [
+  { value: 'textbook',  label: '📚 교재 신청',  color: '#3B82F6', bg: '#EFF6FF' },
+  { value: 'camp',      label: '⛺ 캠프 신청',   color: '#059669', bg: '#F0FDF4' },
+  { value: 'retreat',   label: '🏕️ 수련회 신청', color: '#7C3AED', bg: '#F5F3FF' },
+  { value: 'activity',  label: '🎯 활동 신청',   color: '#D97706', bg: '#FFFBEB' },
+  { value: 'survey',    label: '📋 설문/조사',    color: '#0EA5E9', bg: '#F0F9FF' },
+  { value: 'other',     label: '📌 기타',         color: '#6B7280', bg: '#F9FAFB' },
+];
+
+function _getEventType(val) {
+  return EVENT_TYPES.find(t => t.value === val) || EVENT_TYPES[EVENT_TYPES.length - 1];
+}
+
+async function initEventsView() {
+  const isAdmin = currentUser && (currentUser.role === 'admin');
+  const wrap = document.getElementById('eventAddBtnWrap');
+  if (wrap) wrap.style.display = isAdmin ? '' : 'none';
+
+  document.getElementById('eventDetailPanel').style.display = 'none';
+  document.getElementById('eventList').style.display = 'block';
+
+  await _loadEvents();
+  // 진행률 표시용: 각 이벤트 시트 데이터 프리로드
+  const active = _eventsCache.filter(ev => ev.active !== false);
+  await Promise.all(active.map(async ev => {
+    if (_eventSheetDataCache[ev.sheetName]) return;
+    try {
+      const r = await callGAS('getEventSheetData', { sheetName: ev.sheetName });
+      if (r && r.success && r.data) _eventSheetDataCache[ev.sheetName] = r.data.rows || [];
+    } catch(e) {}
+  }));
+  _renderEventList();
+}
+
+async function _loadEvents() {
+  try {
+    const r = await callGAS('getAppData', { key: 'events' });
+    if (r && r.success && Array.isArray(r.data)) {
+      _eventsCache = r.data;
+    } else {
+      _eventsCache = [];
+    }
+  } catch(e) { _eventsCache = []; }
+}
+
+function _saveEventsMeta() {
+  callGAS('setAppData', { key: 'events', value: _eventsCache }).catch(e => console.warn('events 저장 오류:', e));
+}
+
+function _getDeadlineStatus(deadline) {
+  if (!deadline) return { label: '기한 없음', cls: 'active' };
+  const now = new Date(); now.setHours(0,0,0,0);
+  const dl = new Date(deadline); dl.setHours(0,0,0,0);
+  const diff = Math.ceil((dl - now) / 86400000);
+  if (diff < 0) return { label: '마감됨', cls: 'expired' };
+  if (diff <= 3) return { label: `D-${diff}`, cls: 'soon' };
+  return { label: `D-${diff}`, cls: 'active' };
+}
+
+function _renderEventList() {
+  const el = document.getElementById('eventList');
+  const isAdmin = currentUser && (currentUser.role === 'admin');
+  const active  = _eventsCache.filter(ev => ev.active !== false);
+
+  if (!active.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📝</div>진행 중인 이벤트가 없습니다.${isAdmin ? '<br><span style="font-size:.8rem;color:var(--gray-400);">위의 "+ 이벤트 생성" 버튼으로 새 이벤트를 만들어보세요.</span>':''}</div>`;
+    return;
+  }
+
+  el.innerHTML = active.map(ev => {
+    const etype = _getEventType(ev.type);
+    const dlStatus = _getDeadlineStatus(ev.deadline);
+    const dlLabel = ev.deadline
+      ? `${(ev.deadline.slice(5,7)*1)}/${(ev.deadline.slice(8,10)*1)} ${dlStatus.label}`
+      : dlStatus.label;
+
+    // 시트 데이터로 진행률 계산
+    const rows = _eventSheetDataCache[ev.sheetName] || [];
+    const total = rows.length;
+    const applied = rows.filter(r => r['신청유무'] === '신청').length;
+    const distributed = rows.filter(r => r['배부완료'] === 'o').length;
+
+    return `
+    <div class="event-card" onclick="openEventDetail('${ev.id}')">
+      <div class="event-card-header">
+        <div class="event-type-icon" style="background:${etype.bg};color:${etype.color};">
+          ${etype.label.split(' ')[0]}
+        </div>
+        <div class="event-card-info">
+          <div class="event-card-title">${escapeHtml(ev.title)}</div>
+          ${ev.description ? `<div class="event-card-desc">${escapeHtml(ev.description)}</div>` : ''}
+        </div>
+        ${isAdmin ? `<button onclick="event.stopPropagation();openEventModal('${ev.id}')"
+          style="background:none;border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 8px;
+                 cursor:pointer;font-size:.7rem;color:var(--gray-500);flex-shrink:0;">✏️</button>` : ''}
+      </div>
+      <div class="event-card-footer">
+        <span class="event-deadline ${dlStatus.cls}">${dlLabel}</span>
+        <div style="display:flex;gap:8px;margin-left:auto;font-size:.72rem;font-weight:600;">
+          <span style="color:#3B82F6;">신청 ${applied}/${total}</span>
+          <span style="color:#10B981;">배부 ${distributed}/${applied || total}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 이벤트 생성/수정 모달 ──────────────────────────────────
+function openEventModal(editId) {
+  const ev = editId ? _eventsCache.find(e => e.id === editId) : null;
+  const isEdit = !!ev;
+
+  let modal = document.getElementById('eventFormModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-backdrop';
+    modal.id = 'eventFormModal';
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal('eventFormModal'); });
+    document.body.appendChild(modal);
+  }
+
+  const typeOptions = EVENT_TYPES.map(t =>
+    `<option value="${t.value}" ${ev && ev.type === t.value ? 'selected' : ''}>${t.label}</option>`
+  ).join('');
+
+  modal.innerHTML = `
+    <div class="modal" style="max-width:440px;">
+      <div class="modal-header">
+        <div class="modal-title">${isEdit ? '✏️ 이벤트 수정' : '📝 새 이벤트 생성'}</div>
+        <button class="modal-close" onclick="closeModal('eventFormModal')">✕</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+        <div class="form-group">
+          <label class="form-label">이벤트 이름 *</label>
+          <input class="form-control" id="evTitle" placeholder="예) 2학기 교재 신청" value="${ev ? escapeHtml(ev.title) : ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">유형</label>
+          <select class="form-control" id="evType">${typeOptions}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">마감일</label>
+          <input class="form-control" type="date" id="evDeadline" value="${ev ? (ev.deadline || '') : ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">설명</label>
+          <textarea class="form-control" id="evDesc" rows="3" placeholder="이벤트에 대한 설명을 입력하세요..." style="resize:vertical;">${ev ? escapeHtml(ev.description || '') : ''}</textarea>
+        </div>
+        ${isEdit ? `<div style="font-size:.72rem;color:var(--gray-400);padding:8px;background:var(--gray-50);border-radius:6px;">
+          📋 연결된 시트: <strong>${ev.sheetName}</strong><br>
+          <span style="color:var(--gray-500);">구글 시트에서 직접 '신청유무' 열에 '신청'을 입력하면 앱에 반영됩니다.</span>
+        </div>` : ''}
+      </div>
+      <div class="modal-footer">
+        ${isEdit ? `<button class="btn btn-danger btn-sm" onclick="_deleteEvent('${ev.id}')" style="margin-right:auto;">삭제</button>` : ''}
+        <button class="btn btn-outline" onclick="closeModal('eventFormModal')">취소</button>
+        <button class="btn btn-primary" onclick="_saveEventForm('${isEdit ? ev.id : ''}')">${isEdit ? '수정' : '생성'}</button>
+      </div>
+    </div>`;
+  openModal('eventFormModal');
+  setTimeout(() => document.getElementById('evTitle').focus(), 200);
+}
+
+async function _saveEventForm(editId) {
+  const title = document.getElementById('evTitle').value.trim();
+  if (!title) { showToast('이벤트 이름을 입력해주세요.', 'error'); return; }
+  const type = document.getElementById('evType').value;
+  const deadline = document.getElementById('evDeadline').value;
+  const desc = document.getElementById('evDesc').value.trim();
+
+  if (editId) {
+    // 수정
+    const ev = _eventsCache.find(e => e.id === editId);
+    if (ev) { ev.title = title; ev.type = type; ev.deadline = deadline; ev.description = desc; }
+    _saveEventsMeta();
+    closeModal('eventFormModal');
+    _renderEventList();
+    showToast('이벤트가 수정되었습니다.', 'success');
+  } else {
+    // 신규 생성 — 구글 시트도 함께 생성
+    const evId = 'ev_' + Date.now();
+    const sheetName = '이벤트_' + title.replace(/[\/\\?*[\]]/g,'').slice(0,20) + '_' + String(Date.now()).slice(-6);
+
+    showToast('시트 생성 중...', 'success');
+    const r = await callGAS('createEventSheet', { sheetName, title });
+    if (!r || !r.success) {
+      showToast(r ? r.message : '시트 생성 실패', 'error');
+      return;
+    }
+
+    _eventsCache.unshift({
+      id: evId,
+      title, type, deadline, description: desc,
+      sheetName,
+      createdBy: currentUser ? currentUser.name : '',
+      createdAt: new Date().toISOString(),
+      active: true,
+    });
+    _saveEventsMeta();
+    closeModal('eventFormModal');
+    _renderEventList();
+    showToast(`이벤트 생성 완료! (${r.data.studentCount}명)`, 'success');
+  }
+}
+
+async function _deleteEvent(id) {
+  if (!confirm('이 이벤트를 삭제하시겠습니까?\n연결된 구글 시트도 삭제됩니다.')) return;
+  const ev = _eventsCache.find(e => e.id === id);
+  if (ev && ev.sheetName) {
+    await callGAS('deleteEventSheet', { sheetName: ev.sheetName }).catch(() => {});
+    delete _eventSheetDataCache[ev.sheetName];
+  }
+  _eventsCache = _eventsCache.filter(e => e.id !== id);
+  _saveEventsMeta();
+  closeModal('eventFormModal');
+  _renderEventList();
+  showToast('이벤트가 삭제되었습니다.', 'success');
+}
+
+// ── 이벤트 상세 (시트 기반 체크리스트) ──────────────────────
+async function openEventDetail(eventId) {
+  _currentEventId = eventId;
+  _eventViewFilter = 'all';
+  const ev = _eventsCache.find(e => e.id === eventId);
+  if (!ev) return;
+
+  document.getElementById('eventList').style.display = 'none';
+  const panel = document.getElementById('eventDetailPanel');
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="loading"><div class="spinner"></div><span>시트 데이터 불러오는 중...</span></div>';
+
+  // 시트 데이터 로드
+  try {
+    const r = await callGAS('getEventSheetData', { sheetName: ev.sheetName });
+    if (r && r.success && r.data) {
+      _eventSheetDataCache[ev.sheetName] = r.data.rows || [];
+    } else {
+      _eventSheetDataCache[ev.sheetName] = [];
+      if (r && r.message) showToast(r.message, 'error');
+    }
+  } catch(e) {
+    _eventSheetDataCache[ev.sheetName] = [];
+  }
+
+  _renderEventDetail(ev);
+}
+
+function _renderEventDetail(ev) {
+  const panel = document.getElementById('eventDetailPanel');
+  const etype = _getEventType(ev.type);
+  const dlStatus = _getDeadlineStatus(ev.deadline);
+  const isAdmin = currentUser && (currentUser.role === 'admin');
+  const isLeadership = currentUser && (currentUser.role === 'leadership');
+  const hasFullAccess = isAdmin || isLeadership;
+
+  let rows = (_eventSheetDataCache[ev.sheetName] || []).slice();
+
+  // 반 필터: 교사는 담당 반만
+  if (!hasFullAccess && currentUser) {
+    const rawClass = currentUser.classGroup || '';
+    const myClasses = rawClass.split(',').map(c => c.trim()).filter(c => c);
+    if (myClasses.length) rows = rows.filter(r => myClasses.includes(r['학년-반']));
+  }
+
+  // 반 목록 (필터용)
+  const allClasses = [...new Set(rows.map(r => r['학년-반']))].sort((a,b) => {
+    const order = ['초6','중1','중2','중3','고1','고2','고3'];
+    function idx(c) { for(let i=0;i<order.length;i++) if((c||'').startsWith(order[i])) return i; return 99; }
+    return idx(a) - idx(b) || (a||'').localeCompare(b||'','ko');
+  });
+
+  // 반 필터 적용
+  if (_eventClassFilter) rows = rows.filter(r => r['학년-반'] === _eventClassFilter);
+
+  // 전체 통계 (필터 전)
+  const allRows = _eventSheetDataCache[ev.sheetName] || [];
+  const totalAll = allRows.length;
+  const appliedAll = allRows.filter(r => r['신청유무'] === '신청').length;
+  const distAll = allRows.filter(r => r['배부완료'] === 'o').length;
+
+  // 상태 필터
+  if (_eventViewFilter === 'applied')        rows = rows.filter(r => r['신청유무'] === '신청');
+  else if (_eventViewFilter === 'notApplied') rows = rows.filter(r => r['신청유무'] !== '신청');
+  else if (_eventViewFilter === 'distributed') rows = rows.filter(r => r['배부완료'] === 'o');
+  else if (_eventViewFilter === 'notDistributed') rows = rows.filter(r => r['신청유무'] === '신청' && r['배부완료'] !== 'o');
+
+  const appliedFiltered = rows.filter(r => r['신청유무'] === '신청').length;
+  const distFiltered = rows.filter(r => r['배부완료'] === 'o').length;
+
+  // 반 필터 태그
+  const classFilterHtml = hasFullAccess ? `
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
+      <button class="filter-tag ${!_eventClassFilter ? 'active' : ''}" onclick="_setEventClassFilter('')">전체</button>
+      ${allClasses.map(c => `<button class="filter-tag ${_eventClassFilter === c ? 'active' : ''}" onclick="_setEventClassFilter('${c}')">${c}</button>`).join('')}
+    </div>` : '';
+
+  // 상태 필터 태그
+  const statusFilterHtml = `
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">
+      <button class="filter-tag ${_eventViewFilter === 'all' ? 'active' : ''}" onclick="_setEventViewFilter('all')">전체 (${rows.length})</button>
+      <button class="filter-tag ${_eventViewFilter === 'applied' ? 'active' : ''}" onclick="_setEventViewFilter('applied')" style="${_eventViewFilter==='applied'?'background:#3B82F6;color:#fff;border-color:#3B82F6;':''}">신청자</button>
+      <button class="filter-tag ${_eventViewFilter === 'notApplied' ? 'active' : ''}" onclick="_setEventViewFilter('notApplied')" style="${_eventViewFilter==='notApplied'?'background:#EF4444;color:#fff;border-color:#EF4444;':''}">미신청자</button>
+      <button class="filter-tag ${_eventViewFilter === 'notDistributed' ? 'active' : ''}" onclick="_setEventViewFilter('notDistributed')" style="${_eventViewFilter==='notDistributed'?'background:#D97706;color:#fff;border-color:#D97706;':''}">미배부</button>
+      <button class="filter-tag ${_eventViewFilter === 'distributed' ? 'active' : ''}" onclick="_setEventViewFilter('distributed')" style="${_eventViewFilter==='distributed'?'background:#10B981;color:#fff;border-color:#10B981;':''}">배부완료</button>
+    </div>`;
+
+  // 학생 리스트
+  const listHtml = rows.map(r => {
+    const isApplied = r['신청유무'] === '신청';
+    const isDist = r['배부완료'] === 'o';
+    const applyBadge = isApplied
+      ? `<span style="font-size:.65rem;font-weight:700;background:#DBEAFE;color:#1D4ED8;border:1px solid #93C5FD;border-radius:10px;padding:1px 8px;margin-left:5px;">신청자</span>`
+      : `<span style="font-size:.65rem;font-weight:700;background:#FEE2E2;color:#DC2626;border:1px solid #FCA5A5;border-radius:10px;padding:1px 8px;margin-left:5px;">미신청</span>`;
+
+    return `
+    <div class="event-check-row" style="${isDist ? 'background:#F0FDF4;' : ''}">
+      <div class="event-check-box ${isDist ? 'checked' : ''}"
+        onclick="_toggleDistributed('${ev.sheetName}','${r['학생ID']}',${isDist ? 'false' : 'true'})">
+        ${isDist ? '✓' : ''}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div class="event-check-name">
+          ${r['이름']}${applyBadge}
+          <span style="font-size:.68rem;color:var(--gray-400);margin-left:4px;">${r['학년-반']||''}</span>
+        </div>
+        ${r['담임교사'] ? `<div class="event-check-sub">담임: ${r['담임교사']}</div>` : ''}
+      </div>
+      ${isDist ? `<span style="font-size:.68rem;color:#10B981;font-weight:700;">배부완료 ✅</span>` : ''}
+    </div>`;
+  }).join('');
+
+  // 진행률 바
+  const applyPct = totalAll > 0 ? Math.round(appliedAll / totalAll * 100) : 0;
+  const distPct  = appliedAll > 0 ? Math.round(distAll / appliedAll * 100) : 0;
+
+  panel.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <button class="btn btn-outline btn-sm" onclick="_backToEventList()" style="margin-bottom:12px;">← 목록으로</button>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <div class="event-type-icon" style="background:${etype.bg};color:${etype.color};width:46px;height:46px;font-size:1.4rem;">
+          ${etype.label.split(' ')[0]}
+        </div>
+        <div style="flex:1;">
+          <div style="font-weight:800;font-size:1.05rem;color:var(--gray-800);">${escapeHtml(ev.title)}</div>
+          ${ev.description ? `<div style="font-size:.8rem;color:var(--gray-500);margin-top:2px;">${escapeHtml(ev.description)}</div>` : ''}
+        </div>
+        <span class="event-deadline ${dlStatus.cls}">${ev.deadline ? (ev.deadline.slice(5,7)*1)+'/'+(ev.deadline.slice(8,10)*1)+' '+dlStatus.label : '기한 없음'}</span>
+      </div>
+
+      <!-- 통계 카드 -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
+        <div style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:10px;padding:10px;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:800;color:#2563EB;">${appliedAll}<span style="font-size:.75rem;color:var(--gray-400);">/${totalAll}</span></div>
+          <div style="font-size:.68rem;color:#6B7280;font-weight:600;">신청 (${applyPct}%)</div>
+          <div style="height:4px;background:#DBEAFE;border-radius:50px;margin-top:4px;overflow:hidden;">
+            <div style="height:100%;width:${applyPct}%;background:#3B82F6;border-radius:50px;"></div>
+          </div>
+        </div>
+        <div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:10px;padding:10px;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:800;color:#10B981;">${distAll}<span style="font-size:.75rem;color:var(--gray-400);">/${appliedAll}</span></div>
+          <div style="font-size:.68rem;color:#6B7280;font-weight:600;">배부완료 (${distPct}%)</div>
+          <div style="height:4px;background:#D1FAE5;border-radius:50px;margin-top:4px;overflow:hidden;">
+            <div style="height:100%;width:${distPct}%;background:#10B981;border-radius:50px;"></div>
+          </div>
+        </div>
+        <div style="background:#FEF2F2;border:1.5px solid #FECACA;border-radius:10px;padding:10px;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:800;color:#EF4444;">${totalAll - appliedAll}</div>
+          <div style="font-size:.68rem;color:#6B7280;font-weight:600;">미신청</div>
+        </div>
+      </div>
+
+      ${isAdmin ? `<div style="font-size:.72rem;color:var(--gray-400);padding:6px 10px;background:var(--gray-50);border-radius:6px;margin-bottom:10px;">
+        💡 구글 시트 "<strong>${ev.sheetName}</strong>"의 <strong>신청유무</strong> 열에 <strong>신청</strong>을 입력하면 앱에 반영됩니다.
+      </div>` : ''}
+    </div>
+
+    ${classFilterHtml}
+    ${statusFilterHtml}
+
+    <div style="font-size:.75rem;color:var(--gray-500);margin-bottom:6px;">
+      ${_eventClassFilter ? _eventClassFilter + ' · ' : ''}${rows.length}명 표시 · 체크 = 배부완료
+    </div>
+    <div style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-100);overflow:hidden;">
+      ${listHtml || '<div class="empty" style="padding:20px;">해당하는 학생이 없습니다.</div>'}
+    </div>`;
+}
+
+function _backToEventList() {
+  _currentEventId = null;
+  _eventClassFilter = '';
+  _eventViewFilter = 'all';
+  document.getElementById('eventDetailPanel').style.display = 'none';
+  document.getElementById('eventList').style.display = 'block';
+  _renderEventList();
+}
+
+function _setEventClassFilter(cls) {
+  _eventClassFilter = cls;
+  const ev = _eventsCache.find(e => e.id === _currentEventId);
+  if (ev) _renderEventDetail(ev);
+}
+
+function _setEventViewFilter(filter) {
+  _eventViewFilter = filter;
+  const ev = _eventsCache.find(e => e.id === _currentEventId);
+  if (ev) _renderEventDetail(ev);
+}
+
+async function _toggleDistributed(sheetName, studentId, newVal) {
+  const value = newVal ? 'o' : '';
+
+  // 로컬 캐시 즉시 업데이트 (빠른 UI)
+  const rows = _eventSheetDataCache[sheetName] || [];
+  const row = rows.find(r => r['학생ID'] === studentId);
+  if (row) row['배부완료'] = value;
+
+  const ev = _eventsCache.find(e => e.sheetName === sheetName);
+  if (ev) _renderEventDetail(ev);
+
+  // 서버 업데이트
+  const r = await callGAS('updateEventCell', { sheetName, studentId, column: '배부완료', value });
+  if (!r || !r.success) {
+    showToast(r ? r.message : '저장 실패', 'error');
+    // 롤백
+    if (row) row['배부완료'] = value === 'o' ? '' : 'o';
+    if (ev) _renderEventDetail(ev);
+  }
+}
+
 
 // ══════════════════════════════════════════
 // 시작 — sessionStorage 자동 로그인 시도
