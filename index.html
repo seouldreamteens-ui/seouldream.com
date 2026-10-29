@@ -1861,6 +1861,55 @@ const LEADERSHIP_ROLES = ['리더십', '리더'];
 const NEWBIE_TEACHER_ROLES = ['새친구', '새친구교사'];
 const ATTENDANCE_TEACHER_ROLES = ['담임', '부담임'];
 
+// ── 리더십 교사 출석체크 담당 그룹 ── 여기서 이름/그룹 추가·수정 ──────
+// 학년 그룹(초6·중1…고3)은 해당 학년 담임·부담임, '영어반'은 영어반 담당 교사,
+// 그 외(새친구·사역팀·미디어팀·찬양팀)는 교사 '구분'에 그 역할이 있는 교사.
+const LEADER_TEACHER_GROUPS = {
+  '강성용': ['새친구', '사역팀', '영어반'],
+  '김자은': ['초6'],
+  '김기환': ['중1'],
+  '이은영': ['중2'],
+  '김성용': ['중3', '미디어팀'],
+  '성동훈': ['고1'],
+  '허태령': ['고2', '고3'],
+  '최영광': ['찬양팀'],
+};
+// 특정 교사를 지정 그룹으로 강제 배치 (교적상 구분과 관계없이)
+const TEACHER_GROUP_OVERRIDE = {
+  '황영훈': ['새친구'],
+};
+const _normName = s => String(s || '').replace(/\s/g, '');
+function getLeaderGroups(name) {
+  const key = Object.keys(LEADER_TEACHER_GROUPS).find(k => _normName(k) === _normName(name));
+  return key ? LEADER_TEACHER_GROUPS[key] : null;
+}
+// 이 교사가 그룹(groups) 중 하나에 속하는지
+function teacherInGroups(t, groups) {
+  const okey = Object.keys(TEACHER_GROUP_OVERRIDE).find(k => _normName(k) === _normName(t['이름']));
+  if (okey) return TEACHER_GROUP_OVERRIDE[okey].some(g => groups.includes(g));
+  const classes = String(t['담당 학년-반'] || '').split(',').map(c => c.trim()).filter(Boolean);
+  const roles   = String(t['구분'] || '').split(',').map(r => r.trim()).filter(Boolean);
+  const base = x => x.replace(/(팀|교사)$/, '');
+  return groups.some(g => {
+    if (/^(초|중|고)\d$/.test(g)) return classes.some(c => c.startsWith(g));
+    if (g === '영어반') return classes.some(c => c.includes('영어반')) || roles.includes('영어반');
+    return roles.some(r => r === g || base(r) === base(g));
+  });
+}
+// 현재 사용자가 교사 출석체크를 할 수 있는지
+function canCheckTeacherAttendance() {
+  if (!currentUser) return false;
+  if (currentUser.role === 'admin' || currentUser.role === 'leadership') return true;
+  return !!getLeaderGroups(currentUser.name);
+}
+// 교사 출석체크에서 현재 사용자에게 보여줄 교사인지 (null = 전체)
+function visibleTeacherFilter() {
+  if (!currentUser || currentUser.role === 'admin') return null;
+  const groups = getLeaderGroups(currentUser.name);
+  if (!groups) return null; // 그룹 지정 없는 리더십 → 전체
+  return t => teacherInGroups(t, groups);
+}
+
 // 구분 필드는 쉼표로 구분된 복수값일 수 있음 ("담임,찬양팀" 등)
 function hasRole(teacher, roleList) {
   const roles = (teacher['구분'] || '').split(',').map(r => r.trim());
@@ -2214,7 +2263,7 @@ function getDemoData(action, payload) {
         return { success: true, data: { students: result, sundays: getSundays2026() } };
       }
 
-      const validStatuses = ['등록','심방필요']; // 장결자·유학중·새친구 출석목록 제외
+      const validStatuses = ['등록','심방필요','장결자','유학중','유학']; // 새친구만 출석목록 제외
       const studs = _demo.students
         .filter(s => s['학년-반'] === cls && validStatuses.includes(s['상태']))
         .sort((a,b) => a['이름'].localeCompare(b['이름'],'ko'));
@@ -3793,7 +3842,7 @@ function setupAttendanceDateSelect() {
     if (c.startsWith('고3')) return '7_' + c;
     return '9_' + c;
   }
-  const validSt = ['등록','심방필요'];  // 장결자·유학중 출석목록 제외
+  const validSt = ['등록','심방필요','장결자','유학중','유학'];  // 장결자·유학도 출석부에 표시
   const allClasses = [...new Set(allStudents.filter(s=>validSt.includes(s['상태'])).map(s=>s['학년-반']))]
     .sort((a,b)=>classOrder(a).localeCompare(classOrder(b)));
 
@@ -3849,6 +3898,11 @@ function setupAttendanceDateSelect() {
       classEl.removeAttribute('disabled');
     }
     if (myClasses.length <= 1) classEl.setAttribute('disabled', 'disabled');
+    // 리더십으로 지정된 교사: 담당 그룹 교사 출석체크 메뉴 추가
+    if (canCheckTeacherAttendance()) {
+      classEl.insertAdjacentHTML('beforeend', '<option value="__teachers__">👥 교사 출석체크</option>');
+      classEl.removeAttribute('disabled');
+    }
     renderAttLockBanner(myClasses.length ? myClasses.join(', ') : fallback);
   }
 
@@ -3963,9 +4017,11 @@ async function loadAttendance(silentMerge = false) {
     if (r2.success && r2.data && r2.data.students) {
       r2.data.students.forEach(s => { attMap[s.studentId] = s; });
     }
+    const showT = visibleTeacherFilter();
     allTeachers.forEach(t => {
       const prev = attMap[t['교사ID']];
       currentAttRecords[t['교사ID']] = {
+        _hidden: showT ? !showT(t) : false,   // 담당 그룹 외 교사는 숨김 (저장 시 기존값 유지)
         studentId: t['교사ID'],
         name: t['이름'],
         classGroup: '__teachers__',
@@ -3983,25 +4039,28 @@ async function loadAttendance(silentMerge = false) {
   const r = await callGAS('getAttendance', {classGroup:cls, date});
   if (!r.success) { showToast(r.message,'error'); return; }
 
-  const excluded = ['장결자','유학중','유학'];
+  // 장결자·유학 학생도 출석부에 표시 (상태 뱃지로 구분)
+  const serverList = r.data.students.slice();
+  const shownIds = new Set(serverList.map(s => s.studentId));
+  // 서버가 장결자·유학 학생을 명단에서 빼고 보내는 경우 교적 기준으로 보충
+  allStudents
+    .filter(st => st['학년-반'] === cls && ['장결자','유학중','유학'].includes(st['상태']) && !shownIds.has(st['학생ID']))
+    .sort((a, b) => (a['이름'] || '').localeCompare(b['이름'] || '', 'ko'))
+    .forEach(st => serverList.push({ studentId: st['학생ID'], name: st['이름'], classGroup: cls, status: '미체크', reason: '' }));
+  const withStatus = s => {
+    const stu = allStudents.find(st => st['학생ID'] === s.studentId);
+    return { ...s, _studentStatus: stu ? stu['상태'] : (s._studentStatus || '') };
+  };
 
   if (!silentMerge) {
     // 최초 로드: 전부 교체
     currentAttRecords = {};
-    r.data.students.forEach(s => {
-      const stu = allStudents.find(st => st['학생ID'] === s.studentId);
-      const status = stu ? stu['상태'] : (s.status || '');
-      if (excluded.includes(status)) return;
-      currentAttRecords[s.studentId] = { ...s };
-    });
+    serverList.forEach(s => { currentAttRecords[s.studentId] = withStatus(s); });
   } else {
     // 실시간 폴링 머지: 로컬에서 수정하지 않은 항목만 갱신
-    r.data.students.forEach(s => {
-      const stu = allStudents.find(st => st['학생ID'] === s.studentId);
-      const status = stu ? stu['상태'] : (s.status || '');
-      if (excluded.includes(status)) return;
+    serverList.forEach(s => {
       if (_locallyModified.has(s.studentId)) return; // 로컬 수정 우선
-      currentAttRecords[s.studentId] = { ...s };
+      currentAttRecords[s.studentId] = withStatus(s);
     });
   }
   renderAttList();
@@ -4009,19 +4068,30 @@ async function loadAttendance(silentMerge = false) {
 
 function renderAttList() {
   const el = document.getElementById('attList');
-  const records = Object.values(currentAttRecords);
+  const records = Object.values(currentAttRecords).filter(r => !r._hidden);
   if (!records.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>명단이 없습니다.</div>`; return; }
 
   const canEdit = currentUser && (currentUser.role === 'admin' || currentUser.role === 'leadership' || currentUser.role === 'teacher');
 
   document.getElementById('attSaveArea').style.display = 'block';
-  el.innerHTML = records.map(r => {
+  const _isTeacherList = records.some(r => r._isTeacher);
+  const _myGroups = (_isTeacherList && currentUser && currentUser.role !== 'admin') ? getLeaderGroups(currentUser.name) : null;
+  const groupInfo = _myGroups
+    ? `<div style="font-size:.78rem;color:var(--primary);background:var(--primary-lt);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:8px;font-weight:600;">⭐ 담당 그룹: ${_myGroups.join(' · ')} (${records.length}명)</div>`
+    : '';
+  el.innerHTML = groupInfo + records.map(r => {
     const subLabel = r._isTeacher
       ? `<span style="font-size:.72rem;color:var(--gray-500);">${r._role}${r._class ? ' · ' + r._class : ''}</span>`
       : '';
     // 심방필요 학생 표시
-    const visitTag = (!r._isTeacher && r._studentStatus === '심방필요')
-      ? `<span style="font-size:.65rem;font-weight:700;background:#FEF3C7;color:#D97706;border:1px solid #FCD34D;border-radius:10px;padding:1px 6px;margin-left:4px;">심방필요</span>`
+    const _stTagStyle = {
+      '심방필요': 'background:#FEF3C7;color:#D97706;border:1px solid #FCD34D;',
+      '장결자':   'background:#FEE2E2;color:#DC2626;border:1px solid #FCA5A5;',
+      '유학중':   'background:#E0F2FE;color:#0284C7;border:1px solid #7DD3FC;',
+      '유학':     'background:#E0F2FE;color:#0284C7;border:1px solid #7DD3FC;',
+    }[r._studentStatus];
+    const visitTag = (!r._isTeacher && _stTagStyle)
+      ? `<span style="font-size:.65rem;font-weight:700;${_stTagStyle}border-radius:10px;padding:1px 6px;margin-left:4px;">${r._studentStatus}</span>`
       : '';
     // 새롭게 등반한 학생 표시
     const newTag = (!r._isTeacher && r._isNew)
@@ -4324,16 +4394,32 @@ async function saveAttendance() {
   const date = document.getElementById('attDate').value;
   if (!cls || !date) return;
 
+  const saveBtn = document.querySelector('#attSaveArea button');
+  const _resetBtn = () => { if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 출석 저장'; } };
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ 저장 중...'; }
+
+  // 리더십이 담당 그룹 교사만 체크한 경우: 다른 그룹 교사는 서버 최신값을 그대로 유지
+  if (cls === '__teachers__' && Object.values(currentAttRecords).some(x => x._hidden)) {
+    const latest = await callGAS('getAttendance', { classGroup: '__teachers__', date });
+    if (latest.success && latest.data && latest.data.students) {
+      latest.data.students.forEach(p => {
+        const rec = currentAttRecords[p.studentId];
+        if (rec && rec._hidden) { rec.status = p.status || '미체크'; rec.reason = p.reason || ''; rec.note = p.note || rec.note || ''; }
+      });
+    }
+  }
+
   const records = Object.values(currentAttRecords).map(r => ({
     studentId: r.studentId, name: r.name, status: r.status, reason: r.reason||'', note: r.note||''
   }));
 
   const r = await callGAS('saveAttendance', {classGroup:cls, date, records});
-  if (!r.success) { showToast(r.message || '저장 오류', 'error'); return; }
+  if (!r.success) { _resetBtn(); showToast(r.message || '저장 오류', 'error'); return; }
 
   // 교사 출석체크는 상태 자동변경 없음
   if (cls === '__teachers__') {
-    showToast('✅ 교사 출석 저장되었습니다.', 'success');
+    _resetBtn();
+    showSaveCompletePopup();
     _locallyModified.clear();
     await loadStudents();
     renderDashboard();
@@ -4362,19 +4448,21 @@ async function saveAttendance() {
     if (stu && stu['상태']==='유학중') continue; // 유학중이면 다른 판정 건너뜀
 
     const history = await getConsecutiveAbsentCount(rec.studentId, date);
+    // 새친구에서 등반한 학생인지 (등반 전 주일은 결석으로 보지 않음)
+    const joinedFromNewbie = !!getClassJoinDate(rec.studentId, date);
 
     if (history >= 12) {
       const changed = await applyStatusChange(rec.studentId, '장결자');
       if (changed) statusChanges.push({ name: rec.name, newStatus: '장결자' });
     } else if (history >= 2) {
-      // 이미 장결자면 심방필요로 낮추지 않음
-      if (stu && stu['상태'] !== '장결자') {
+      // 이미 장결자면 심방필요로 낮추지 않음 (단, 등반 학생이 잘못 장결자 처리된 경우는 바로잡음)
+      if (stu && (stu['상태'] !== '장결자' || joinedFromNewbie)) {
         const changed = await applyStatusChange(rec.studentId, '심방필요');
         if (changed) { statusChanges.push({ name: rec.name, newStatus: '심방필요' }); showVisitAlert(rec.name); }
       }
     } else {
-      // 출석 복구
-      if (stu && (stu['상태']==='심방필요' || stu['상태']==='장결자') && rec.status==='출석') {
+      // 출석 복구 (등반 학생은 결석이 누적되지 않았으면 등록으로 유지)
+      if (stu && (stu['상태']==='심방필요' || stu['상태']==='장결자') && (rec.status==='출석' || joinedFromNewbie)) {
         const changed = await applyStatusChange(rec.studentId, '등록');
         if (changed) statusChanges.push({ name: rec.name, newStatus: '등록 (복구)' });
       }
@@ -4384,15 +4472,11 @@ async function saveAttendance() {
   // ── 새친구 4주 완료 알림 ────────────────────────────────
   checkNewbieCompletion();
 
-  // ── 결과 알림 ────────────────────────────────────────
-  if (statusChanges.length > 0) {
-    const msg = statusChanges.map(c=>`${c.name} → ${c.newStatus}`).join(', ');
-    showToast(`✅ 출석 저장되었습니다. (상태 변경: ${msg})`, 'success');
-    _locallyModified.clear();
-  } else {
-    showToast('✅ 출석 저장되었습니다.', 'success');
-    _locallyModified.clear();
-  }
+  // ── 결과 알림 (저장 완료 팝업) ─────────────────────────
+  _resetBtn();
+  const changeMsg = statusChanges.map(c=>`${c.name} → ${c.newStatus}`).join(', ');
+  showSaveCompletePopup(changeMsg ? `상태 변경: ${changeMsg}` : '');
+  _locallyModified.clear();
 
   await loadStudents();
   renderDashboard();
@@ -4401,6 +4485,44 @@ async function saveAttendance() {
   const clsAfter = document.getElementById('attClass').value;
   const dateAfter = document.getElementById('attDate').value;
   if (clsAfter && dateAfter) await loadAttendance();
+}
+
+// ── 새친구 → 반 등반일(마지막 새친구 출석일) 계산 ─────────────
+// 반환: 'YYYY-MM-DD' (이 날짜까지는 새친구 기간) / 등반 학생이 아니면 ''
+function getClassJoinDate(studentId, currentDate) {
+  const stu  = allStudents.find(s => s['학생ID'] === studentId);
+  const norm = s => String(s || '').replace(/\s/g, '');
+  const nb = allNewbies.find(n => n['학생ID'] && n['학생ID'] === studentId)
+          || (stu ? allNewbies.find(n => norm(n['이름']) === norm(stu['이름'])) : null);
+  const rec = currentAttRecords[studentId];
+  if (!nb) {
+    // 새친구 기록은 없지만 서버가 '새롭게 등반' 표시를 준 경우 → 이번 주부터만 계산
+    if (rec && rec._isNew && currentDate) {
+      const d = new Date(currentDate); d.setDate(d.getDate() - 1);
+      return toLocalDateStr(d);
+    }
+    return '';
+  }
+  const refYear = parseInt(String(currentDate || '').slice(0, 4)) || new Date().getFullYear();
+  const toIso = v => {
+    v = String(v || '').trim();
+    if (!v) return '';
+    let m = v.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+    if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    m = v.match(/^(\d{1,2})[.\/-](\d{1,2})$/);
+    if (m) {
+      let iso = `${refYear}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+      if (currentDate && iso > currentDate) iso = `${refYear - 1}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+      return iso;
+    }
+    const d = new Date(v);
+    return isNaN(d) ? '' : toLocalDateStr(d);
+  };
+  const dates = [1,2,3,4].map(w => toIso(nb[`${w}주차날짜`]))
+    .concat([toIso(nb['반배정날짜']), toIso(nb['반배정일']), toIso(nb['등록날짜'])])
+    .filter(Boolean)
+    .filter(d => !currentDate || d < currentDate);
+  return dates.length ? dates.sort().pop() : '';
 }
 
 // ── 연속 결석/미체크 횟수 (이번 기록 포함) ─────────────────
@@ -4413,8 +4535,12 @@ async function getConsecutiveAbsentCount(studentId, currentDate) {
     ? [{ date: currentDate, status: current.status || '미체크', reason: current.reason||'' }, ...r.data]
     : r.data;
 
+  // 새친구에서 반으로 등반한 학생: 반배정 이전 주일(그 반에 없던 기간)은 계산에서 제외
+  const joinDate = getClassJoinDate(studentId, currentDate);
+
   let count = 0;
   for (const entry of fullHistory) {
+    if (joinDate && entry.date && String(entry.date).slice(0, 10) <= joinDate) break;
     const isAbsent = entry.status === '결석' || entry.status === '미체크' || !entry.status;
     if (isAbsent) count++;
     else break;
@@ -5222,7 +5348,7 @@ async function saveNewbieWeek(name, week) {
   if (!newbie) { showToast('새친구를 찾을 수 없습니다.', 'error'); return; }
 
   const r = await callGAS('updateNewbieAtt', {
-    studentId: newbie['학생ID'] || '',
+    studentId: resolveNewbieStudentId(newbie),
     name,
     weekNum: week,
     date,
@@ -5230,6 +5356,7 @@ async function saveNewbieWeek(name, week) {
   });
 
   if (r.success) {
+    _rememberNewbieStudentId(newbie, r);
     newbie[`${week}주차날짜`] = date;
     newbie[`${week}주차출결`] = '출석';
     showToast(`${week}주차 출석 저장됨 (${toMmDd(date)})`, 'success');
@@ -5245,8 +5372,33 @@ async function updateNewbieDate(id, week, rawVal) {
   if (!newbie) return;
   const attKey = `${week}주차출결`;
   const name = newbie['이름'] || '';
-  await callGAS('updateNewbieAtt', {studentId: newbie['학생ID']||'', name, weekNum:week, date, status:newbie[attKey]||''});
+  const r = await callGAS('updateNewbieAtt', {studentId: resolveNewbieStudentId(newbie), name, weekNum:week, date, status:newbie[attKey]||''});
+  if (r && r.success) _rememberNewbieStudentId(newbie, r);
   newbie[`${week}주차날짜`] = date;
+}
+
+// ── 새친구 ↔ 학생교적 학생ID 연결 ──────────────────────────
+// 새친구 시트 행에 학생ID가 비어 있으면 서버가 저장할 때마다 학생교적에
+// 새 학생(새 ID)을 만들어 중복이 쌓이므로, 교적에 이미 있는 같은 이름의
+// 새친구 학생ID를 찾아 함께 보낸다.
+function resolveNewbieStudentId(newbie) {
+  if (!newbie) return '';
+  if (newbie['학생ID']) return newbie['학생ID'];
+  const norm = s => String(s || '').replace(/\s/g, '');
+  const name = norm(newbie['이름']);
+  if (!name) return '';
+  const same = allStudents.filter(s => norm(s['이름']) === name);
+  const pick = same.filter(s => s['상태'] === '새친구' || s['학년-반'] === '새친구');
+  const list = (pick.length ? pick : (same.length === 1 ? same : []))
+    .slice().sort((a, b) => String(a['학생ID']).localeCompare(String(b['학생ID']), 'ko', { numeric: true }));
+  if (!list.length) return '';
+  newbie['학생ID'] = list[0]['학생ID'];   // 가장 먼저 만들어진 ID 사용
+  return newbie['학생ID'];
+}
+function _rememberNewbieStudentId(newbie, r) {
+  if (!newbie || newbie['학생ID'] || !r || !r.data) return;
+  const id = r.data.studentId || r.data.id || r.data['학생ID'];
+  if (id) newbie['학생ID'] = id;
 }
 
 async function setNewbieAtt(id, week, status, btn) {
@@ -5256,8 +5408,9 @@ async function setNewbieAtt(id, week, status, btn) {
   const date = newbie[dateKey] || '';
   if (!date) { showToast('날짜를 먼저 입력해주세요.','error'); return; }
   const name = newbie['이름'] || '';
-  const r = await callGAS('updateNewbieAtt', {studentId: newbie['학생ID']||'', name, weekNum:week, date, status});
+  const r = await callGAS('updateNewbieAtt', {studentId: resolveNewbieStudentId(newbie), name, weekNum:week, date, status});
   if (r.success) {
+    _rememberNewbieStudentId(newbie, r);
     newbie[`${week}주차출결`] = status;
     showToast('저장되었습니다.','success');
     renderNewbieList();
@@ -6246,6 +6399,30 @@ function closeModal(id) {
 }
 
 let toastTimer;
+// ── 저장 완료 팝업 ─────────────────────────────────────────
+function showSaveCompletePopup(detail = '') {
+  let modal = document.getElementById('saveDoneModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'saveDoneModal';
+    modal.className = 'modal-backdrop';
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal('saveDoneModal'); });
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="modal" style="max-width:320px;text-align:center;">
+      <div class="modal-body" style="padding:28px 20px 12px;">
+        <div style="font-size:2.4rem;line-height:1;margin-bottom:10px;">✅</div>
+        <div style="font-size:1.05rem;font-weight:800;color:var(--gray-800);">저장 완료되었습니다.</div>
+        ${detail ? `<div style="font-size:.8rem;color:var(--gray-600);margin-top:8px;line-height:1.5;">${escapeHtml(detail)}</div>` : ''}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary btn-full" onclick="closeModal('saveDoneModal')">확인</button>
+      </div>
+    </div>`;
+  openModal('saveDoneModal');
+}
+
 function showToast(msg, type='') {
   const el = document.getElementById('toast');
   el.textContent = msg;
