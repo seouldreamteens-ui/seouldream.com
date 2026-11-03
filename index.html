@@ -4409,7 +4409,7 @@ async function saveAttendance() {
     }
   }
 
-  const records = Object.values(currentAttRecords).map(r => ({
+  const records = Object.values(currentAttRecords).filter(r => r.studentId).map(r => ({
     studentId: r.studentId, name: r.name, status: r.status, reason: r.reason||'', note: r.note||''
   }));
 
@@ -5048,6 +5048,7 @@ function showVisitAlert(name) {
 
 // 학생 상태 변경 (변경 발생 여부 반환)
 async function applyStatusChange(studentId, newStatus) {
+  if (!studentId) return false; // ID 없는 학생은 서버가 다른 빈 ID 행을 덮어쓸 수 있으므로 건너뜀
   const stu = allStudents.find(s => s['학생ID'] === studentId);
   if (!stu) return false;
   if (stu['상태'] === newStatus) return false; // 이미 같은 상태
