@@ -3679,12 +3679,12 @@ function _renderTeacherBirthday() {
   } else {
     // 일반 교사: 담당 반 학생 생일
     let myStudents = [];
-    if (myClasses.length > 0) {
-      myStudents = allStudents.filter(s => myClasses.some(c => s['학년-반'] === c));
+    if (myClasses_bd.length > 0) {
+      myStudents = allStudents.filter(s => myClasses_bd.some(c => s['학년-반'] === c));
     }
     birthdayPeople = myStudents.filter(s => getBdMonth(s['생년월일']) === m)
       .map(s => ({ name: s['이름'], bd: s['생년월일'] }));
-    sectionLabel = myClasses.join(', ') || '담당 반 없음';
+    sectionLabel = myClasses_bd.join(', ') || '담당 반 없음';
   }
   birthdayPeople.sort((a,b) => getBdDay(a.bd) - getBdDay(b.bd));
   const birthdayStudents = birthdayPeople; // 하위 호환 변수
@@ -3863,12 +3863,16 @@ function setupAttendanceDateSelect() {
       allClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
     classEl.removeAttribute('disabled');
   } else if (isLeadershipAndTeacher) {
-    // 리더십 겸 담임: 교사 출석 + 전체 반 모두 선택 가능
+    // 리더십 겸 담임: 본인 담당 반(기본 선택) + 교사 출석체크만
+    const rawLC = currentUser.classGroup || '';
+    const myLC  = rawLC.split(',').map(c => c.trim()).filter(c => c && allClasses.includes(c));
+    const ownLC = myLC.length ? myLC : (rawLC ? [rawLC.trim()] : []);
     classEl.innerHTML =
-      '<option value="">반 선택 (전체)</option>' +
-      '<option value="__teachers__">👥 교사 출석체크</option>' +
-      allClasses.map(c=>`<option value="${c}">${c}</option>`).join('');
+      ownLC.map(c=>`<option value="${c}">${c}</option>`).join('') +
+      '<option value="__teachers__">👥 교사 출석체크</option>';
+    classEl.value = ownLC[0] || '__teachers__';
     classEl.removeAttribute('disabled');
+    renderAttLockBanner(ownLC.join(', '));
   } else if (isAdmin) {
     // 교사 출석체크가 맨 위, 그 다음 정렬된 반 목록
     classEl.innerHTML =
